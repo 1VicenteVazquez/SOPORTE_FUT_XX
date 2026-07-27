@@ -128,7 +128,9 @@ define(['N/ui/dialog', 'N/record'], (dialog, record) => {
         if (lineasConError.length > 0) {
             dialog.alert({
                 title: 'Error de Validación',
-                message: `Falta asignar un Bin Number en el Detalle de Inventario.<br> TEST<br>` 
+                message: `Falta asignar un Bin Number en el Detalle de Inventario.<br><br>` +
+                         `<b>Línea(s) con error: ${lineasConError.join(', ')}</b><br><br>` +
+                         `Abre el Detalle de Inventario de cada línea y asigna un depósito.` 
             });
             return false;
         }
