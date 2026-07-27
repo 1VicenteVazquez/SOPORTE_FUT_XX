@@ -130,7 +130,7 @@ define(['N/ui/dialog', 'N/record'], (dialog, record) => {
                 title: 'Error de Validación',
                 message: `Falta asignar un Bin Number en el Detalle de Inventario.<br><br>` +
                          `<b>Línea(s) con error: ${lineasConError.join(', ')}</b><br><br>` +
-                         `Abre el Detalle de Inventario de cada línea y asigna un depósito.` 
+                         `Abre el Detalle de Inventario de cada línea y asigna un depósito.`
             });
             return false;
         }
