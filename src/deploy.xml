@@ -13,9 +13,20 @@
     </translationimports>
 </deploy>
  -->
+<!-- 
+<deploy>
+    <files>
+        <path>~/FileCabinet/SuiteScripts/Validador_Campos/CS_validaBin.js</path>
+    </files>
+</deploy>
+ -->
+
 
 <deploy>
     <files>
         <path>~/FileCabinet/SuiteScripts/Validador_Campos/CS_validaBin.js</path>
     </files>
+    <objects>
+        <path>~/Objects/customscriptfut_cs_validabin.xml</path>
+    </objects>
 </deploy>
