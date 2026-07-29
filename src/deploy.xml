@@ -3,30 +3,116 @@
         <path>~/AccountConfiguration/*</path>
     </configuration>
     <files>
-        <path>~/FileCabinet/*</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/cs_recepciones_masivas_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/SC_MassReceivePO.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js</path>
+    </files>
+</deploy> 
+ -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<deploy>
+    <configuration>
+        <path>~/AccountConfiguration/*</path>
+    </configuration>
+    <files>
+
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js</path>
+
     </files>
     <objects>
-        <path>~/Objects/*</path>
+        <path>~/Objects/customscript_aprobaciones_masivas_po_2.xml</path>
     </objects>
-    <translationimports>
-        <path>~/Translations/*</path>
-    </translationimports>
-</deploy>
- -->
+</deploy>   
+
+
+
 <!-- 
 <deploy>
+    <configuration>
+        <path>~/AccountConfiguration/*</path>
+    </configuration>
     <files>
-        <path>~/FileCabinet/SuiteScripts/Validador_Campos/CS_validaBin.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/cs_recepciones_masivas_po.js</path>
     </files>
-</deploy>
+</deploy>   
+
+
+
  -->
 
 
-<deploy>
+
+
+
+
+<!-- <deploy>
+    <configuration>
+        <path>~/AccountConfiguration/*</path>
+    </configuration>
     <files>
-        <path>~/FileCabinet/SuiteScripts/Validador_Campos/CS_validaBin.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/cs_MR_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/mr_MR_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/ss_MR_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js</path>
     </files>
     <objects>
-        <path>~/Objects/customscriptfut_cs_validabin.xml</path>
+        <path>~/Objects/customscript_aprobaciones_masivas_po_2.xml</path>
     </objects>
-</deploy>
+</deploy>  -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 
+
+
+
+<deploy>
+    <configuration>
+        <path>~/AccountConfiguration/*</path>
+    </configuration>
+    <files>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/cs_MR_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/mr_MR_po.js</path>
+        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/ss_MR_po.js</path>
+    </files>
+</deploy> -->

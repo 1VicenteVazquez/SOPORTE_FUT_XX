@@ -1,0 +1,10 @@
+<clientscript scriptid="customscript_cs_recepciones_masivas_po">
+  <description></description>
+  <isinactive>F</isinactive>
+  <name>CS - Recepciones Masivas PO</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/Recepciones Masivas/cs_recepciones_masivas_po.js]</scriptfile>
+</clientscript>
