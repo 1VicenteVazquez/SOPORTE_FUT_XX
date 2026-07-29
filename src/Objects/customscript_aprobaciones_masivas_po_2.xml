@@ -1,0 +1,25 @@
+<suitelet scriptid="customscript_aprobaciones_masivas_po_2">
+  <description></description>
+  <isinactive>F</isinactive>
+  <name>Recepciones Masivas PO 2</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_recepciones_masivas_po_2">
+      <allemployees>F</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>F</isonline>
+      <loglevel>DEBUG</loglevel>
+      <runasrole></runasrole>
+      <status>RELEASED</status>
+      <title>Recepciones Masivas PO 2</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>
