@@ -3,7 +3,6 @@
  * @NScriptType ClientScript
  *
  * CS_CondicionesComerciales_VistaA.js
- * la chida
  */
 define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
 
