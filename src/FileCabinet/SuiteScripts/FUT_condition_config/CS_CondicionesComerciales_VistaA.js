@@ -3,6 +3,7 @@
  * @NScriptType ClientScript
  *
  * CS_CondicionesComerciales_VistaA.js
+ * TESTT 2 
  */
 define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
 
