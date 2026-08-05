@@ -1,25 +1,25 @@
-<suitelet scriptid="customscript_aprobaciones_masivas_po_2">
+<suitelet scriptid="customscript_fut_sl_condcom_vista_b">
   <description></description>
   <isinactive>F</isinactive>
-  <name>Recepciones Masivas PO 2</name>
+  <name>FUT - SL Condiciones Comerciales Vista B</name>
   <notifyadmins>F</notifyadmins>
   <notifyemails></notifyemails>
   <notifyowner>T</notifyowner>
   <notifyuser>F</notifyuser>
-  <scriptfile>[/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js]</scriptfile>
+  <scriptfile>[/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaB.js]</scriptfile>
   <scriptdeployments>
-    <scriptdeployment scriptid="customdeploy_recepciones_masivas_po_2">
+    <scriptdeployment scriptid="customdeploy_fut_sl_condcom_vista_b">
       <allemployees>F</allemployees>
       <allpartners>F</allpartners>
-      <allroles>T</allroles>
+      <allroles>F</allroles>
       <audslctrole></audslctrole>
       <eventtype></eventtype>
       <isdeployed>T</isdeployed>
       <isonline>F</isonline>
       <loglevel>DEBUG</loglevel>
       <runasrole></runasrole>
-      <status>RELEASED</status>
-      <title>Recepciones Masivas PO 2</title>
+      <status>TESTING</status>
+      <title>FUT - SL Condiciones Comerciales Vista B</title>
     </scriptdeployment>
   </scriptdeployments>
 </suitelet>
