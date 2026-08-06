@@ -4,9 +4,16 @@
  *
  * CS_CondicionesComerciales_VistaB.js
  *
- * - Valida que Pronto Pago / Rebate / Crecimiento estén entre 0 y 20
- *   (decimales permitidos, ej. 4.5).
- * - Permite agregar un Artículo nuevo a la cuadrícula (sin guardar aún).
+ * - Valida que el % (Pronto Pago / Rebate / Crecimiento, según el "tipo"
+ *   que se esté editando) esté entre 0 y 20 (decimales permitidos).
+ * - Los Artículos se agregan directo en la tabla (columna Artículo editable
+ *   + botón nativo "Add" de NetSuite) - ya no hay selector externo.
+ * - validateLine evita agregar el mismo Artículo dos veces.
+ * - NUEVO: validateLine también rechaza Artículos que NO correspondan al
+ *   Proveedor seleccionado (según su historial de Purchase Order/Bill,
+ *   calculado en el Suitelet y recibido aquí en custpage_articulos_permitidos).
+ *   Esto evita el problema original: agregar un Artículo de una Marca
+ *   distinta a la que se estaba filtrando en Vista A/B.
  * - Al guardar, detecta qué líneas cambiaron respecto al estado original
  *   y arma el JSON que el Suitelet (Vista B) recibirá por POST.
  */
@@ -20,6 +27,11 @@ define(['N/currentRecord'], (currentRecord) => {
 
     let lineasOriginales = {};
 
+    // NUEVO: array de internal IDs (string) de Artículos permitidos para
+    // el Proveedor de este popup. Se llena en pageInit leyendo el campo
+    // oculto custpage_articulos_permitidos que manda el Suitelet.
+    let articulosPermitidos = [];
+
     function pageInit(context) {
         const rec = context.currentRecord;
         const lineCount = rec.getLineCount({ sublistId: SUBLIST_ID });
@@ -32,6 +44,18 @@ define(['N/currentRecord'], (currentRecord) => {
         }
 
         console.log('CS_VistaB.pageInit -> snapshot original:', lineasOriginales);
+
+        // ---- NUEVO: cargar lista de Artículos permitidos ----
+        try {
+            const raw = rec.getValue({ fieldId: 'custpage_articulos_permitidos' });
+            articulosPermitidos = raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            console.error('CS_VistaB.pageInit -> error parseando articulosPermitidos:', e);
+            articulosPermitidos = [];
+        }
+
+        console.log('CS_VistaB.pageInit -> artículos permitidos para este Proveedor:', articulosPermitidos.length, articulosPermitidos);
+        // -------------------------------------------------------
     }
 
     function snapshotLinea(rec, line) {
@@ -69,39 +93,49 @@ define(['N/currentRecord'], (currentRecord) => {
         return true;
     }
 
-    function agregarLinea(context) {
-        const rec = context.currentRecord;
-        const nuevoItem = rec.getValue({ fieldId: 'custpage_nuevo_item' });
+    /**
+     * Se dispara al confirmar (Add/OK) un renglón del sublist, ya sea
+     * nuevo o editado. Aquí evitamos que el mismo Artículo quede
+     * duplicado en la tabla, y (NUEVO) evitamos que se agregue un
+     * Artículo que no corresponda al Proveedor seleccionado.
+     */
+    function validateLine(context) {
+        const { sublistId, currentRecord: rec } = context;
 
-        console.log('CS_VistaB.agregarLinea -> nuevoItem:', nuevoItem);
+        if (sublistId !== SUBLIST_ID) return true;
 
-        if (!nuevoItem) {
-            alert('Selecciona un artículo para agregar.');
-            return;
+        const itemActual = rec.getCurrentSublistValue({ sublistId, fieldId: 'custpage_col_item' });
+
+        if (!itemActual) {
+            alert('Selecciona un Artículo para esta línea.');
+            return false;
         }
 
-        const lineCount = rec.getLineCount({ sublistId: SUBLIST_ID });
+        // ---- NUEVO: el Artículo debe pertenecer al catálogo del Proveedor ----
+        // Si articulosPermitidos viene vacío, significa que el Proveedor no
+        // tiene historial de Purchase Order/Bill (ej. proveedor nuevo o de
+        // prueba) -> no se restringe, para no bloquear casos legítimos.
+        if (articulosPermitidos.length > 0 && articulosPermitidos.indexOf(String(itemActual)) === -1) {
+            console.warn('CS_VistaB.validateLine -> Artículo rechazado, no pertenece al Proveedor:', itemActual);
+            alert('Ese Artículo no corresponde a este Proveedor (no aparece en su historial de Órdenes de Compra / Facturas). Selecciona un Artículo que sí haya sido comprado a este Proveedor.');
+            return false;
+        }
+        // ------------------------------------------------------------------
+
+        const lineaActual = rec.getCurrentSublistIndex({ sublistId });
+        const lineCount = rec.getLineCount({ sublistId });
+
         for (let i = 0; i < lineCount; i++) {
-            const existente = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_item', line: i });
-            if (String(existente) === String(nuevoItem)) {
+            if (i === lineaActual) continue;
+
+            const itemExistente = rec.getSublistValue({ sublistId, fieldId: 'custpage_col_item', line: i });
+            if (String(itemExistente) === String(itemActual)) {
                 alert('Ese artículo ya está en la lista.');
-                return;
+                return false;
             }
         }
 
-        rec.selectNewLine({ sublistId: SUBLIST_ID });
-        rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_item', value: nuevoItem });
-        rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_activo', value: 'T' });
-        rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_prontopago', value: 0 });
-        rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_rebate', value: 0 });
-        rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_crecimiento', value: 0 });
-        rec.commitLine({ sublistId: SUBLIST_ID });
-
-        rec.setValue({ fieldId: 'custpage_nuevo_item', value: '' });
-
-        console.log('CS_VistaB.agregarLinea -> línea agregada, total líneas ahora:', rec.getLineCount({ sublistId: SUBLIST_ID }));
-
-        // Nueva línea no tiene snapshot original -> se detectará como cambio al guardar
+        return true;
     }
 
     function saveRecord(context) {
@@ -149,7 +183,7 @@ define(['N/currentRecord'], (currentRecord) => {
     return {
         pageInit: pageInit,
         validateField: validateField,
-        agregarLinea: agregarLinea,
+        validateLine: validateLine,
         saveRecord: saveRecord
     };
 });
