@@ -4,412 +4,154 @@
  * @NModuleScope SameAccount
  *
  * SL_CondicionesComerciales_VistaB.js
- *
- * Ventana flotante (popup): cuadrícula editable (INLINEEDITOR) con los
- * Artículos y el porcentaje de UNA sola Condición (la elegida en Vista A
- * vía el parámetro "tipo": pronto_pago | rebate | crecimiento).
- * Los artículos se agregan directo en la tabla (columna Artículo editable
- * + botón nativo "Add" de NetSuite) — ya no hay selector externo arriba.
- * Al presionar "Guardar y Cerrar", el Client Script empaqueta solo las
- * líneas que cambiaron en un JSON y hace POST a este mismo Suitelet,
- * que lanza el Map/Reduce para aplicar los cambios de forma asíncrona.
- *
- * Rango válido del % (Pronto Pago / Rebate / Crecimiento): 0 a 20,
- * con decimales. La validación en sí vive en el Client Script
- * (CS_CondicionesComerciales_VistaB.js / validateField).
- *
- * ACTUALIZADO (filtro Proveedor -> Artículo vía Marca del Proveedor):
- * El dropdown de "Artículo" del sublist ya NO usa source:'item' (eso
- * traía el catálogo completo, ~9800 artículos), ni tampoco el historial
- * de Purchase Order/Bill. En su lugar, se lee el campo custentity_marca
- * del Proveedor (List/Record sobre customlist_nso_list_marca, el mismo
- * que usa el Item en custitem_nso_marca) y se filtran directamente los
- * Artículos cuyo custitem_nso_marca coincida con esa Marca.
- * El campo se arma con addSelectOption(), poblado únicamente con:
- *   1. Los Artículos cuyo custitem_nso_marca = Marca del Proveedor.
- *   2. Los Artículos ya guardados en Condiciones Comerciales para ese
- *      Proveedor+Marca (para no perder datos si algún artículo ya no
- *      tuviera la Marca correcta seteada).
- * Si el Proveedor no tiene Marca (custentity_marca vacío) ni registros
- * previos, se usa el catálogo completo (source:'item') como fallback,
- * para no dejar el campo inutilizable.
- * El Client Script conserva además una validación de respaldo
- * (validateLine) por si en el futuro se agrega otra vía de edición.
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
-    const CUSTOM_RECORD_ID = 'customrecord_fut_condiciones_comerciales';
-    const MARCA_LIST_ID = 'customlist_nso_list_marca';
-
-    const MR_VISTA_B = {
-        scriptId: 'customscript_fut_mr_condcom_actualizar',
-        deploymentId: 'customdeploy_fut_mr_condcom_actualizar'
-    };
-
-    const FIELD = {
-        PROVEEDOR: 'custrecord_cc_proveedor',
-        MARCA: 'custrecord_cc_marca',
-        ARTICULO: 'custrecord_cc_articulo',
-        ACTIVO: 'custrecord_cc_activo',
-        PRONTO_PAGO: 'custrecord_cc_pronto_pago',
-        REBATE: 'custrecord_cc_rebate',
-        CRECIMIENTO: 'custrecord_cc_crecimiento'
-    };
-
-    // Mapea el parámetro "tipo" (recibido desde Vista A) a la columna del
-    // sublist y su etiqueta visible. Las otras 2 columnas de % se ocultan
-    // (siguen viajando en la página, pero no se muestran ni se editan).
-    const TIPOS = {
-        pronto_pago: { columnaVisible: 'custpage_col_prontopago', label: 'Pronto Pago % (0-20)' },
-        rebate: { columnaVisible: 'custpage_col_rebate', label: 'Rebate % (0-20)' },
-        crecimiento: { columnaVisible: 'custpage_col_crecimiento', label: 'Crec. Extraordinario % (0-20)' }
-    };
+    const PAGE_SIZE = 50; 
 
     const onRequest = (context) => {
-        log.debug({ title: 'SL_VistaB onRequest', details: `Método: ${context.request.method} | Params: ${JSON.stringify(context.request.parameters)}` });
-
-        if (context.request.method === 'GET') {
-            renderPopup(context);
-        } else {
-            handleSave(context);
-        }
+        if (context.request.method === 'GET') renderForm(context);
+        else if (context.request.method === 'POST') procesarGuardado(context);
     };
 
-    function renderPopup(context) {
+    function renderForm(context) {
         const params = context.request.parameters;
-        const proveedorId = params.proveedor;
-        const marcaId = params.marca;
-        const tipo = params.tipo || 'pronto_pago';
-        const tipoCfg = TIPOS[tipo] || TIPOS.pronto_pago;
-
-        log.debug({ title: 'SL_VistaB renderPopup', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | tipo: ${tipo}` });
-
-        const form = serverWidget.createForm({ title: `Editar Condición Comercial - ${tipoCfg.label.replace(/ %.*/, '')}` });
+        const form = serverWidget.createForm({ title: 'Asignación de Condiciones' });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
 
-        const proveedorField = form.addField({
-            id: 'custpage_proveedor',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Proveedor',
-            source: 'vendor'
-        });
-        proveedorField.defaultValue = proveedorId;
-        proveedorField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.DISABLED });
+        form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.padreId;
+        form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
+        form.addField({ id: 'custpage_marca_id', type: serverWidget.FieldType.TEXT, label: 'Marca' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.marca;
+        form.addField({ id: 'custpage_proveedor_id', type: serverWidget.FieldType.TEXT, label: 'Prov' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.proveedor;
+        form.addField({ id: 'custpage_payload', type: serverWidget.FieldType.LONGTEXT, label: 'Payload' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
 
-        const marcaField = form.addField({
-            id: 'custpage_marca',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Marca',
-            source: MARCA_LIST_ID
-        });
-        marcaField.defaultValue = marcaId;
-        marcaField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.DISABLED });
+        form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre' }).defaultValue = params.filtro || '';
+        
+        const htmlPaginacion = form.addField({ id: 'custpage_html_paginacion', type: serverWidget.FieldType.INLINEHTML, label: ' ' });
 
-        // Guarda qué tipo se está editando para que el Client Script sepa
-        // qué columna validar/enviar como "principal".
-        const tipoField = form.addField({
-            id: 'custpage_tipo',
-            type: serverWidget.FieldType.TEXT,
-            label: 'Tipo'
-        });
-        tipoField.defaultValue = tipo;
-        tipoField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        form.addSubmitButton({ label: 'Guardar Cambios' });
 
-        // Campo oculto donde el Client Script deposita el JSON de cambios
-        const payloadField = form.addField({
-            id: 'custpage_payload',
-            type: serverWidget.FieldType.LONGTEXT,
-            label: 'Payload'
-        });
-        payloadField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
+        sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'Reg ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Aplica' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
+        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: '% Condición' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
+        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Observaciones / Rines' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
 
-        form.addSubmitButton('Guardar y Cerrar');
-
-        const sublist = form.addSublist({
-            id: 'custpage_sublist',
-            type: serverWidget.SublistType.INLINEEDITOR,
-            label: 'Artículos'
-        });
-
-        const idCol = sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'ID' });
-        idCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-
-        // ---- Artículo -> dropdown restringido al catálogo de la Marca del Proveedor ----
-        // 1. Se lee custentity_marca del Proveedor y se buscan los
-        //    Artículos cuyo custitem_nso_marca coincida (por ID).
-        // 2. Se cargan también los registros ya guardados de Condiciones
-        //    Comerciales para este Proveedor+Marca (necesitamos saberlo ANTES
-        //    de armar el dropdown, para no perder artículos ya guardados que
-        //    por algún motivo ya no coincidan por Marca).
-        // 3. Con esas dos listas se arma UN SOLO conjunto de opciones y se
-        //    agregan al campo con addSelectOption -> el dropdown nativo de
-        //    NetSuite YA NO muestra el catálogo completo, solo estas opciones.
-        const registros = buscarCondicionesComerciales(proveedorId, marcaId);
-        const opcionesArticulo = obtenerOpcionesArticuloParaProveedor(proveedorId, registros);
-
-        log.audit({
-            title: 'SL_VistaB - Opciones de Artículo generadas para el dropdown',
-            details: `proveedorId: ${proveedorId} | total opciones: ${opcionesArticulo.length}`
-        });
-
-        const itemField = sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo' });
-
-        if (opcionesArticulo.length > 0) {
-            itemField.addSelectOption({ value: '', text: '' });
-            opcionesArticulo.forEach((op) => {
-                itemField.addSelectOption({ value: op.id, text: op.text });
-            });
-        } else {
-            // Proveedor sin Marca configurada ni registros previos: no hay
-            // forma de "adivinar" su catálogo, así que se deja el picker
-            // nativo completo como fallback (mejor que dejar el campo
-            // inutilizable). Se loguea para que quede visible.
-            log.audit({
-                title: 'SL_VistaB - Proveedor sin artículos conocidos, se usa catálogo completo como fallback',
-                details: `proveedorId: ${proveedorId}`
-            });
-            itemField.source = 'item';
+        if (params.marca && params.padreId) {
+            cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', parseInt(params.page) || 0, htmlPaginacion);
         }
-        // ---------------------------------------------------------------------
-
-        // Se sigue mandando la lista de IDs permitidos como respaldo para el
-        // Client Script (por si en el futuro se agrega otra vía de edición).
-        const articulosPermitidosField = form.addField({
-            id: 'custpage_articulos_permitidos',
-            type: serverWidget.FieldType.LONGTEXT,
-            label: 'Articulos Permitidos'
-        });
-        articulosPermitidosField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        articulosPermitidosField.defaultValue = JSON.stringify(opcionesArticulo.map((op) => op.id));
-
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
-
-        // Las 3 columnas de % siempre se agregan (para no perder los otros
-        // 2 valores al guardar), pero solo la del "tipo" actual queda
-        // visible; las otras 2 se ocultan.
-        const colProntoPago = sublist.addField({ id: 'custpage_col_prontopago', type: serverWidget.FieldType.FLOAT, label: 'Pronto Pago % (0-20)' });
-        const colRebate = sublist.addField({ id: 'custpage_col_rebate', type: serverWidget.FieldType.FLOAT, label: 'Rebate % (0-20)' });
-        const colCrecimiento = sublist.addField({ id: 'custpage_col_crecimiento', type: serverWidget.FieldType.FLOAT, label: 'Crec. Extraordinario % (0-20)' });
-
-        const COLUMNAS_PERCENT = {
-            custpage_col_prontopago: colProntoPago,
-            custpage_col_rebate: colRebate,
-            custpage_col_crecimiento: colCrecimiento
-        };
-
-        Object.keys(COLUMNAS_PERCENT).forEach((colId) => {
-            if (colId !== tipoCfg.columnaVisible) {
-                COLUMNAS_PERCENT[colId].updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-            }
-        });
-
-        log.debug({ title: 'SL_VistaB registros encontrados', details: registros.length });
-
-        registros.forEach((r, i) => {
-            sublist.setSublistValue({ id: 'custpage_col_id', line: i, value: r.id });
-            sublist.setSublistValue({ id: 'custpage_col_item', line: i, value: r.itemId });
-            sublist.setSublistValue({ id: 'custpage_col_activo', line: i, value: r.activo ? 'T' : 'F' });
-            sublist.setSublistValue({ id: 'custpage_col_prontopago', line: i, value: r.prontoPago });
-            sublist.setSublistValue({ id: 'custpage_col_rebate', line: i, value: r.rebate });
-            sublist.setSublistValue({ id: 'custpage_col_crecimiento', line: i, value: r.crecimiento });
-        });
 
         context.response.writePage(form);
     }
 
-    /**
-     * NUEVO: lee custentity_marca del Proveedor (List/Record sobre
-     * customlist_nso_list_marca) y devuelve el INTERNAL ID de la Marca.
-     */
-    function obtenerMarcaDelProveedor(proveedorId) {
-        try {
-            const fields = search.lookupFields({
-                type: search.Type.VENDOR,
-                id: proveedorId,
-                columns: ['custentity_marca']
-            });
+    function cargarArticulos(sublist, marcaId, padreId, filtroTexto, pageIndex, htmlPaginacion) {
+        const registrosHijo = {};
+        
+        log.debug('VISTA B - Buscando Registros', `Padre ID: ${padreId}`);
 
-            let marcaId = fields.custentity_marca;
-            if (Array.isArray(marcaId)) marcaId = marcaId.length > 0 ? marcaId[0].value : null;
-
-            log.debug({ title: 'SL_VistaB obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId}` });
-            return marcaId || null;
-        } catch (e) {
-            log.error({ title: 'SL_VistaB - Error en obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | ${e.message}` });
-            return null;
-        }
-    }
-
-    /**
-     * ACTUALIZADO (reemplaza el approach de PO/Bill): devuelve un array
-     * de { id, text } de Artículos cuyo custitem_nso_marca coincida con
-     * la Marca del Proveedor (custentity_marca). "text" es el nombre/
-     * código del artículo, para poder armar las opciones del dropdown
-     * con addSelectOption.
-     */
-    function obtenerArticulosDelProveedor(proveedorId) {
-        const items = [];
-
-        if (!proveedorId) {
-            return items;
-        }
-
-        const marcaId = obtenerMarcaDelProveedor(proveedorId);
-
-        if (!marcaId) {
-            log.audit({ title: 'SL_VistaB obtenerArticulosDelProveedor - Proveedor sin custentity_marca', details: `proveedorId: ${proveedorId}` });
-            return items;
-        }
-
-        try {
-            const s = search.create({
-                type: search.Type.ITEM,
-                filters: [
-                    ['custitem_nso_marca', 'anyof', marcaId]
-                ],
-                columns: ['itemid']
-            });
-
-            s.run().each((r) => {
-                items.push({ id: String(r.id), text: r.getValue({ name: 'itemid' }) || String(r.id) });
-                return true;
-            });
-
-            log.debug({
-                title: 'SL_VistaB obtenerArticulosDelProveedor - resultado',
-                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | items encontrados: ${items.length}`
-            });
-        } catch (e) {
-            log.error({
-                title: 'SL_VistaB - Error en obtenerArticulosDelProveedor',
-                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | ${e.message}`
-            });
-        }
-
-        return items;
-    }
-
-    /**
-     * Combina los Artículos filtrados por Marca del Proveedor con los
-     * Artículos que ya están guardados en Condiciones Comerciales para
-     * este Proveedor+Marca (por si alguno ya no coincide por Marca,
-     * para no "perder" datos existentes del dropdown).
-     * Devuelve un array de { id, text } sin duplicados.
-     */
-    function obtenerOpcionesArticuloParaProveedor(proveedorId, registrosExistentes) {
-        const delMarca = obtenerArticulosDelProveedor(proveedorId);
-
-        const idsYaIncluidos = {};
-        const opciones = [];
-
-        delMarca.forEach((it) => {
-            if (!idsYaIncluidos[it.id]) {
-                idsYaIncluidos[it.id] = true;
-                opciones.push(it);
-            }
-        });
-
-        (registrosExistentes || []).forEach((r) => {
-            const itemId = String(r.itemId);
-            if (itemId && !idsYaIncluidos[itemId]) {
-                idsYaIncluidos[itemId] = true;
-                opciones.push({ id: itemId, text: obtenerNombreArticulo(itemId) });
-                log.audit({
-                    title: 'SL_VistaB - Artículo agregado al dropdown desde registro existente (no coincide por Marca)',
-                    details: `itemId: ${itemId}`
-                });
-            }
-        });
-
-        return opciones;
-    }
-
-    function obtenerNombreArticulo(itemId) {
-        try {
-            const fields = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['itemid'] });
-            return fields.itemid || String(itemId);
-        } catch (e) {
-            log.error({ title: 'SL_VistaB - Error en obtenerNombreArticulo', details: `itemId: ${itemId} | ${e.message}` });
-            return String(itemId);
-        }
-    }
-
-    function buscarCondicionesComerciales(proveedorId, marcaId) {
-        const out = [];
-
-        try {
-            const s = search.create({
-                type: CUSTOM_RECORD_ID,
-                filters: [
-                    [FIELD.PROVEEDOR, 'anyof', proveedorId],
-                    'AND',
-                    [FIELD.MARCA, 'anyof', marcaId]
-                ],
-                columns: [FIELD.ARTICULO, FIELD.ACTIVO, FIELD.PRONTO_PAGO, FIELD.REBATE, FIELD.CRECIMIENTO]
-            });
-
-            s.run().each((r) => {
-                out.push({
-                    id: r.id,
-                    itemId: r.getValue(FIELD.ARTICULO),
-                    activo: r.getValue(FIELD.ACTIVO) === true || r.getValue(FIELD.ACTIVO) === 'T',
-                    prontoPago: r.getValue(FIELD.PRONTO_PAGO),
-                    rebate: r.getValue(FIELD.REBATE),
-                    crecimiento: r.getValue(FIELD.CRECIMIENTO)
-                });
-                return true;
-            });
-        } catch (e) {
-            log.error({ title: 'SL_VistaB - Error en buscarCondicionesComerciales', details: e.message });
-        }
-
-        return out;
-    }
-
-    function handleSave(context) {
-        const params = context.request.parameters;
-        const proveedorId = params.custpage_proveedor;
-        const marcaId = params.custpage_marca;
-        const payloadRaw = params.custpage_payload;
-
-        log.debug({ title: 'SL_VistaB handleSave', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | payload length: ${payloadRaw ? payloadRaw.length : 0}` });
-
-        let cambios = [];
-        try {
-            cambios = payloadRaw ? JSON.parse(payloadRaw) : [];
-        } catch (e) {
-            log.error({ title: 'SL_VistaB - Error parseando payload', details: e.message });
-        }
-
-        log.debug({ title: 'SL_VistaB handleSave - cambios a procesar', details: cambios.length });
-
-        if (cambios.length > 0) {
-            try {
-                const mrTask = task.create({ taskType: task.TaskType.MAP_REDUCE });
-                mrTask.scriptId = MR_VISTA_B.scriptId;
-                mrTask.deploymentId = MR_VISTA_B.deploymentId;
-                mrTask.params = {
-                    custscript_mr_cc_proveedor: proveedorId,
-                    custscript_mr_cc_marca: marcaId,
-                    custscript_mr_cc_cambios: JSON.stringify(cambios)
+        // 1. CARGA DE REGISTROS GUARDADOS (CON CASTING ESTRICTO)
+        search.create({
+            type: 'customrecord_fut_condicion_detalle',
+            filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
+            columns: ['custrecord_fut_articulo', 'custrecord_fut_activo', 'custrecord_fut_porcentaje', 'custrecord_fut_descripcion']
+        }).run().each(res => {
+            const idArticuloStr = String(res.getValue('custrecord_fut_articulo'));
+            const valorActivo = res.getValue('custrecord_fut_activo');
+            
+            if (idArticuloStr) {
+                registrosHijo[idArticuloStr] = { 
+                    id: String(res.id), 
+                    activo: (valorActivo === 'T' || valorActivo === true), 
+                    pct: res.getValue('custrecord_fut_porcentaje'), 
+                    desc: res.getValue('custrecord_fut_descripcion') 
                 };
-                const taskId = mrTask.submit();
-                log.debug({ title: 'SL_VistaB - Map/Reduce lanzado', details: `taskId: ${taskId}` });
-            } catch (e) {
-                log.error({ title: 'SL_VistaB - Error lanzando Map/Reduce', details: e.message });
             }
+            return true;
+        });
+
+        log.debug('VISTA B - Artículos Encontrados en BD', Object.keys(registrosHijo).length + ' registros extraídos.');
+
+        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS
+        let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
+        if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
+
+        const pagedData = search.create({ type: search.Type.ITEM, filters: filtrosItem, columns: ['internalid', 'itemid'] }).runPaged({ pageSize: PAGE_SIZE });
+
+        // DISEÑO DE PAGINACIÓN 
+        const totalPages = pagedData.pageRanges.length;
+        if (totalPages > 0) {
+            let htmlBtns = `<div style="margin: 10px 0; font-family: sans-serif; display: flex; align-items: center; gap: 5px; font-size: 13px;">`;
+            htmlBtns += `<span style="margin-right: 15px; font-weight: bold; color: #555;">Página ${pageIndex + 1} de ${totalPages}</span>`;
+            if (pageIndex > 0) {
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(0); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Primera">&laquo;</a>`;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Anterior">&lsaquo; Anterior</a>`;
+            }
+            let startPage = Math.max(0, pageIndex - 2);
+            let endPage = Math.min(totalPages - 1, pageIndex + 2);
+            for (let i = startPage; i <= endPage; i++) {
+                let isCurrent = (i === pageIndex);
+                let bg = isCurrent ? '#005587' : '#fff';
+                let txt = isCurrent ? '#fff' : '#005587';
+                let weight = isCurrent ? 'bold' : 'normal';
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${i}); return false;" style="padding: 4px 10px; background: ${bg}; color: ${txt}; font-weight: ${weight}; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;">${i+1}</a>`;
+            }
+            if (pageIndex < totalPages - 1) {
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Siguiente">Siguiente &rsaquo;</a>`;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${totalPages - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Última">&raquo;</a>`;
+            }
+            htmlBtns += `</div>`;
+            htmlPaginacion.defaultValue = htmlBtns;
+
+            // 3. RENDERIZADO DE LAS FILAS
+            let line = 0;
+            pagedData.fetch({ index: pageIndex }).data.forEach(res => {
+                const itemIdStr = String(res.id); // CASTING ESTRICTO
+                const dataHijo = registrosHijo[itemIdStr];
+                
+                sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
+                
+                if (dataHijo) {
+                    sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
+                    sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
+                    
+                    if (dataHijo.pct !== null && dataHijo.pct !== '') {
+                        sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: dataHijo.pct });
+                    }
+                    if (dataHijo.desc) {
+                        sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: dataHijo.desc });
+                    }
+                }
+                line++;
+            });
+        } else {
+            htmlPaginacion.defaultValue = `<div style="margin: 10px 0; font-family: sans-serif; color: #888;">No se encontraron artículos.</div>`;
+        }
+    }
+
+    function procesarGuardado(context) {
+        const req = context.request;
+        const payload = req.parameters.custpage_payload;
+        
+        if (payload && payload !== '[]') {
+            task.create({
+                taskType: task.TaskType.MAP_REDUCE,
+                scriptId: 'customscript_fut_mr_condcom_actualizar',
+                deploymentId: 'customdeploy_fut_mr_condcom_actualizar',
+                params: {
+                    'custscript_mr_cc_padre_id': req.parameters.custpage_padre_id,
+                    'custscript_mr_cc_tipo_id': req.parameters.custpage_tipo_id,
+                    'custscript_mr_cc_cambios': payload
+                }
+            }).submit();
         }
 
-        // Página mínima que cierra la ventana flotante y refresca la Vista A
-        context.response.write(
-            '<html><body>' +
-            '<script>' +
-            'if (window.opener && !window.opener.closed) { window.opener.location.reload(); }' +
-            'window.close();' +
-            '</script>' +
-            'Guardado. Puede cerrar esta ventana si no se cierra sola.' +
-            '</body></html>'
-        );
+        context.response.write(`
+            <script>
+                alert('Procesando cambios en la base de datos...');
+                window.close();
+            </script>
+        `);
     }
 
     return { onRequest };

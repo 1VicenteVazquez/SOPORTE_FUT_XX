@@ -18,7 +18,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
 
     function pageInit(context) {
         window.abrirEdicionTipo = abrirEdicionTipo;
-        console.log('CS_VistaA.pageInit -> abrirEdicionTipo expuesta en window.');
     }
 
     function buscarCondiciones() {
@@ -40,7 +39,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         window.location.href = suiteletUrl;
     }
 
-    function abrirEdicionTipo(tipo) {
+    function abrirEdicionTipo(condicionPadreId, tipoCondicionId) {
         const rec = currentRecord.get();
         const proveedor = rec.getValue({ fieldId: 'custpage_proveedor' });
         const marca = rec.getValue({ fieldId: 'custpage_marca' });
@@ -53,13 +52,19 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         const popupUrl = url.resolveScript({
             scriptId: SL_VISTA_B.scriptId,
             deploymentId: SL_VISTA_B.deploymentId,
-            params: { proveedor: proveedor, marca: marca, tipo: tipo, hideNavBar: 'T' }
+            params: { 
+                proveedor: proveedor, 
+                marca: marca, 
+                padreId: condicionPadreId,
+                tipo: tipoCondicionId, 
+                hideNavBar: 'T' 
+            }
         });
 
         const popupWindow = window.open(
             popupUrl,
             'CondicionesComercialesPopup',
-            'width=900,height=600,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
+            'width=1100,height=650,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no'
         );
 
         if (!popupWindow) {
@@ -67,18 +72,11 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         }
     }
 
-    /**
-     * ACTUALIZADO: Al elegir un Proveedor, la página se recarga para
-     * que el Suitelet pueda armar el campo de Marca ÚNICAMENTE con
-     * las opciones que le pertenecen a ese proveedor.
-     */
     function fieldChanged(context) {
         const rec = context.currentRecord;
 
         if (context.fieldId === 'custpage_proveedor') {
             const proveedor = rec.getValue({ fieldId: 'custpage_proveedor' });
-            
-            // Resolvemos la URL de este mismo Suitelet
             let params = {};
             if (proveedor) {
                 params.proveedor = proveedor;
@@ -90,7 +88,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
                 params: params
             });
 
-            // Evitamos que NetSuite pregunte si queremos salir sin guardar
             window.onbeforeunload = null; 
             window.location.href = suiteletUrl;
         }

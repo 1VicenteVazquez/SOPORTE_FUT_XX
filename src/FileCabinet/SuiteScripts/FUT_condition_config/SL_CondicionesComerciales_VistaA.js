@@ -5,30 +5,13 @@
  *
  * SL_CondicionesComerciales_VistaA.js
  */
-define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) => {
+define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (serverWidget, search, record, redirect, log) => {
 
-    const CUSTOM_RECORD_ID = 'customrecord_fut_condiciones_comerciales';
-
-    const FIELD = {
-        PROVEEDOR: 'custrecord_cc_proveedor',
-        MARCA: 'custrecord_cc_marca',
-        ARTICULO: 'custrecord_cc_articulo',
-        ACTIVO: 'custrecord_cc_activo',
-        PRONTO_PAGO: 'custrecord_cc_pronto_pago',
-        REBATE: 'custrecord_cc_rebate',
-        CRECIMIENTO: 'custrecord_cc_crecimiento'
-    };
-
-    const TIPOS_CONDICION = [
-        { tipo: 'pronto_pago', label: 'Pronto Pago', campoPercent: FIELD.PRONTO_PAGO },
-        { tipo: 'rebate', label: 'Rebate', campoPercent: FIELD.REBATE },
-        { tipo: 'crecimiento', label: 'Crecimiento Extraordinario', campoPercent: FIELD.CRECIMIENTO }
-    ];
+    const CUSTOM_RECORD_PADRE = 'customrecord_fut_condiciones_comerciales';
 
     const onRequest = (context) => {
-        if (context.request.method === 'GET') {
-            renderForm(context);
-        }
+        if (context.request.method === 'GET') renderForm(context);
+        else if (context.request.method === 'POST') guardarCambios(context);
     };
 
     function renderForm(context) {
@@ -39,117 +22,92 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
         const form = serverWidget.createForm({ title: 'Condiciones Comerciales por Proveedor' });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaA.js';
 
-        const proveedorField = form.addField({
-            id: 'custpage_proveedor',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Proveedor',
-            source: 'vendor'
-        });
+        const proveedorField = form.addField({ id: 'custpage_proveedor', type: serverWidget.FieldType.SELECT, label: 'Proveedor', source: 'vendor' });
         proveedorField.isMandatory = true;
         if (proveedorId) proveedorField.defaultValue = proveedorId;
 
-        // ACTUALIZADO: El campo de marca se crea SIN "source" para que nazca vacío
-        const marcaField = form.addField({
-            id: 'custpage_marca',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Marca'
-        });
+        const marcaField = form.addField({ id: 'custpage_marca', type: serverWidget.FieldType.SELECT, label: 'Marca' });
         marcaField.isMandatory = true;
         marcaField.addSelectOption({ value: '', text: '' });
 
-        // Si ya seleccionaron un proveedor, buscamos sus marcas exclusivas
         if (proveedorId) {
-            try {
-                const vendorFields = search.lookupFields({
-                    type: search.Type.VENDOR,
-                    id: proveedorId,
-                    columns: ['custentity_marca']
-                });
-
-                let marcasProveedor = vendorFields.custentity_marca;
-                
-                // Aseguramos que sea un arreglo iterar sobre él
-                if (!Array.isArray(marcasProveedor)) {
-                    marcasProveedor = marcasProveedor ? [marcasProveedor] : [];
+            search.create({ type: search.Type.VENDOR, filters: [['internalid', 'anyof', proveedorId]], columns: ['custentity_marca'] }).run().each(res => {
+                const arrVals = (res.getValue('custentity_marca') || '').split(',');
+                const arrTexts = (res.getText('custentity_marca') || '').split(',');
+                for(let i=0; i<arrVals.length; i++) {
+                    if (arrVals[i]) marcaField.addSelectOption({ value: arrVals[i].trim(), text: arrTexts[i] ? arrTexts[i].trim() : arrVals[i] });
                 }
-
-                // Inyectamos ÚNICAMENTE las marcas de este proveedor al dropdown
-                marcasProveedor.forEach(m => {
-                    marcaField.addSelectOption({ value: m.value, text: m.text });
-                });
-
-                // Comodidad: Si el proveedor solo tiene 1 marca, la seleccionamos por default
-                if (marcasProveedor.length === 1 && !marcaId) {
-                    marcaId = marcasProveedor[0].value;
-                }
-
-            } catch (e) {
-                log.error({ title: 'SL_VistaA - Error filtrando marcas', details: e.message });
-            }
-        }
-
-        // Asignamos el valor por default de la marca (ya sea que venía por URL o se auto-asignó)
-        if (marcaId) {
-            marcaField.defaultValue = marcaId;
-        }
-
-        form.addButton({
-            id: 'custpage_btn_buscar',
-            label: 'Buscar',
-            functionName: 'buscarCondiciones'
-        });
-
-        const sublist = form.addSublist({
-            id: 'custpage_sublist',
-            type: serverWidget.SublistType.LIST,
-            label: 'Condiciones Comerciales'
-        });
-
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
-        sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Condición Comercial' });
-
-        const accionCol = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Acción' });
-        accionCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.NORMAL });
-
-        if (proveedorId && marcaId) {
-            TIPOS_CONDICION.forEach((cfg, i) => {
-                const activo = existeCondicionActiva(proveedorId, marcaId, cfg.campoPercent);
-
-                sublist.setSublistValue({ id: 'custpage_col_activo', line: i, value: activo ? 'T' : 'F' });
-                sublist.setSublistValue({ id: 'custpage_col_condicion', line: i, value: cfg.label });
-                sublist.setSublistValue({
-                    id: 'custpage_col_accion',
-                    line: i,
-                    value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cfg.tipo}')" style="display:inline-block;background:#607799;color:#fff;padding:3px 14px;border-radius:3px;text-decoration:none;font-weight:bold;">VER</a>`
-                });
+                if (arrVals.length === 1 && !marcaId) marcaId = arrVals[0].trim();
+                return false;
             });
         }
+        if (marcaId) marcaField.defaultValue = marcaId;
 
+        form.addButton({ id: 'custpage_btn_buscar', label: 'Buscar / Refrescar', functionName: 'buscarCondiciones' });
+        if (proveedorId && marcaId) form.addSubmitButton({ label: 'Guardar Checkboxes' });
+
+        const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Reglas de Condiciones Comerciales' });
+
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
+        sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Condición Comercial' });
+        sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        sublist.addField({ id: 'custpage_col_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Acción' });
+
+        if (proveedorId && marcaId) {
+            obtenerCondicionesPadre(proveedorId, marcaId).forEach((cond, i) => {
+                sublist.setSublistValue({ id: 'custpage_col_activo', line: i, value: cond.activo ? 'T' : 'F' });
+                sublist.setSublistValue({ id: 'custpage_col_condicion', line: i, value: cond.nombre });
+                sublist.setSublistValue({ id: 'custpage_col_id', line: i, value: cond.id });
+                sublist.setSublistValue({ id: 'custpage_col_tipo_id', line: i, value: cond.tipoId });
+                sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cond.id}', '${cond.tipoId}')" style="display:inline-block;background:#005587;color:#fff;padding:5px 15px;border-radius:4px;text-decoration:none;font-weight:bold;font-size:12px;">VER ARTÍCULOS</a>` });
+            });
+        }
         context.response.writePage(form);
     }
 
-    function existeCondicionActiva(proveedorId, marcaId, campoPercent) {
-        try {
-            const s = search.create({
-                type: CUSTOM_RECORD_ID,
-                filters: [
-                    [FIELD.PROVEEDOR, 'anyof', proveedorId],
-                    'AND',
-                    [FIELD.MARCA, 'anyof', marcaId],
-                    'AND',
-                    [FIELD.ACTIVO, 'is', 'T'],
-                    'AND',
-                    [campoPercent, 'greaterthan', 0]
-                ],
-                columns: ['internalid']
-            });
+    function guardarCambios(context) {
+        const req = context.request;
+        const lineCount = req.getLineCount({ group: 'custpage_sublist' });
 
-            const resultSet = s.run().getRange({ start: 0, end: 1 });
-            return resultSet && resultSet.length > 0;
-        } catch (e) {
-            log.error({ title: 'SL_VistaA - Error en existeCondicionActiva', details: `campo: ${campoPercent} | ${e.message}` });
-            return false;
+        for (let i = 0; i < lineCount; i++) {
+            const idRegistro = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_id', line: i });
+            const estaActivo = (req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_activo', line: i }) === 'T');
+
+            if (idRegistro) {
+                try {
+                    // SOLUCIÓN: Carga y guardado directo
+                    const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
+                    rec.setValue({ fieldId: 'custrecord_cc_activo', value: estaActivo });
+                    rec.save({ ignoreMandatoryFields: true });
+                } catch (e) {
+                    log.error(`Error guardando Padre ${idRegistro}`, e.message);
+                }
+            }
         }
+        redirect.toSuitelet({
+            scriptId: 'customscript_fut_sl_condcom_vista_a',
+            deploymentId: 'customdeploy_fut_sl_condcom_vista_a',
+            parameters: { proveedor: req.parameters.custpage_proveedor, marca: req.parameters.custpage_marca }
+        });
+    }
+
+    function obtenerCondicionesPadre(proveedorId, marcaId) {
+        const lista = [];
+        search.create({
+            type: CUSTOM_RECORD_PADRE,
+            filters: [['custrecord_cc_proveedor', 'anyof', proveedorId], 'AND', ['custrecord_fut_cc_marca', 'anyof', marcaId]],
+            columns: ['internalid', 'custrecord_cc_activo', 'custrecord_fut_cc_nombre_condicion']
+        }).run().each(res => {
+            lista.push({
+                id: res.id,
+                activo: (res.getValue('custrecord_cc_activo') === 'T' || res.getValue('custrecord_cc_activo') === true),
+                nombre: res.getText('custrecord_fut_cc_nombre_condicion') || 'Sin Nombre',
+                tipoId: res.getValue('custrecord_fut_cc_nombre_condicion')
+            });
+            return true;
+        });
+        return lista;
     }
 
     return { onRequest };
