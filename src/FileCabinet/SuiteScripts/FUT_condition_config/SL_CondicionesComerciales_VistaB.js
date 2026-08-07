@@ -6,15 +6,35 @@
  * SL_CondicionesComerciales_VistaB.js
  *
  * Ventana flotante (popup): cuadrícula editable (INLINEEDITOR) con los
- * Artículos y sus porcentajes (Pronto Pago / Rebate / Crecimiento) para
- * un Proveedor + Marca. Permite agregar artículos nuevos a la lista.
+ * Artículos y el porcentaje de UNA sola Condición (la elegida en Vista A
+ * vía el parámetro "tipo": pronto_pago | rebate | crecimiento).
+ * Los artículos se agregan directo en la tabla (columna Artículo editable
+ * + botón nativo "Add" de NetSuite) — ya no hay selector externo arriba.
  * Al presionar "Guardar y Cerrar", el Client Script empaqueta solo las
  * líneas que cambiaron en un JSON y hace POST a este mismo Suitelet,
  * que lanza el Map/Reduce para aplicar los cambios de forma asíncrona.
  *
- * Rango válido de los % (Pronto Pago / Rebate / Crecimiento): 0 a 20,
+ * Rango válido del % (Pronto Pago / Rebate / Crecimiento): 0 a 20,
  * con decimales. La validación en sí vive en el Client Script
  * (CS_CondicionesComerciales_VistaB.js / validateField).
+ *
+ * ACTUALIZADO (filtro Proveedor -> Artículo vía Marca del Proveedor):
+ * El dropdown de "Artículo" del sublist ya NO usa source:'item' (eso
+ * traía el catálogo completo, ~9800 artículos), ni tampoco el historial
+ * de Purchase Order/Bill. En su lugar, se lee el campo custentity_marca
+ * del Proveedor (List/Record sobre customlist_nso_list_marca, el mismo
+ * que usa el Item en custitem_nso_marca) y se filtran directamente los
+ * Artículos cuyo custitem_nso_marca coincida con esa Marca.
+ * El campo se arma con addSelectOption(), poblado únicamente con:
+ *   1. Los Artículos cuyo custitem_nso_marca = Marca del Proveedor.
+ *   2. Los Artículos ya guardados en Condiciones Comerciales para ese
+ *      Proveedor+Marca (para no perder datos si algún artículo ya no
+ *      tuviera la Marca correcta seteada).
+ * Si el Proveedor no tiene Marca (custentity_marca vacío) ni registros
+ * previos, se usa el catálogo completo (source:'item') como fallback,
+ * para no dejar el campo inutilizable.
+ * El Client Script conserva además una validación de respaldo
+ * (validateLine) por si en el futuro se agrega otra vía de edición.
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
@@ -36,6 +56,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         CRECIMIENTO: 'custrecord_cc_crecimiento'
     };
 
+    // Mapea el parámetro "tipo" (recibido desde Vista A) a la columna del
+    // sublist y su etiqueta visible. Las otras 2 columnas de % se ocultan
+    // (siguen viajando en la página, pero no se muestran ni se editan).
+    const TIPOS = {
+        pronto_pago: { columnaVisible: 'custpage_col_prontopago', label: 'Pronto Pago % (0-20)' },
+        rebate: { columnaVisible: 'custpage_col_rebate', label: 'Rebate % (0-20)' },
+        crecimiento: { columnaVisible: 'custpage_col_crecimiento', label: 'Crec. Extraordinario % (0-20)' }
+    };
+
     const onRequest = (context) => {
         log.debug({ title: 'SL_VistaB onRequest', details: `Método: ${context.request.method} | Params: ${JSON.stringify(context.request.parameters)}` });
 
@@ -50,10 +79,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         const params = context.request.parameters;
         const proveedorId = params.proveedor;
         const marcaId = params.marca;
+        const tipo = params.tipo || 'pronto_pago';
+        const tipoCfg = TIPOS[tipo] || TIPOS.pronto_pago;
 
-        log.debug({ title: 'SL_VistaB renderPopup', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId}` });
+        log.debug({ title: 'SL_VistaB renderPopup', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | tipo: ${tipo}` });
 
-        const form = serverWidget.createForm({ title: 'Editar Condiciones Comerciales' });
+        const form = serverWidget.createForm({ title: `Editar Condición Comercial - ${tipoCfg.label.replace(/ %.*/, '')}` });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
 
         const proveedorField = form.addField({
@@ -74,6 +105,16 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         marcaField.defaultValue = marcaId;
         marcaField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.DISABLED });
 
+        // Guarda qué tipo se está editando para que el Client Script sepa
+        // qué columna validar/enviar como "principal".
+        const tipoField = form.addField({
+            id: 'custpage_tipo',
+            type: serverWidget.FieldType.TEXT,
+            label: 'Tipo'
+        });
+        tipoField.defaultValue = tipo;
+        tipoField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+
         // Campo oculto donde el Client Script deposita el JSON de cambios
         const payloadField = form.addField({
             id: 'custpage_payload',
@@ -82,21 +123,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         });
         payloadField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
 
-        // Selector para agregar un artículo nuevo a la cuadrícula
-        form.addField({
-            id: 'custpage_nuevo_item',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Agregar Artículo',
-            source: 'item'
-        });
-
-        form.addButton({
-            id: 'custpage_btn_agregar_linea',
-            label: 'Agregar a la lista',
-            functionName: 'agregarLinea'
-        });
-
-        form.addSubmitButton({ label: 'Guardar y Cerrar' });
+        form.addSubmitButton('Guardar y Cerrar');
 
         const sublist = form.addSublist({
             id: 'custpage_sublist',
@@ -107,16 +134,74 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         const idCol = sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'ID' });
         idCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
 
-        const itemCol = sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' });
-        itemCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.DISABLED });
+        // ---- Artículo -> dropdown restringido al catálogo de la Marca del Proveedor ----
+        // 1. Se lee custentity_marca del Proveedor y se buscan los
+        //    Artículos cuyo custitem_nso_marca coincida (por ID).
+        // 2. Se cargan también los registros ya guardados de Condiciones
+        //    Comerciales para este Proveedor+Marca (necesitamos saberlo ANTES
+        //    de armar el dropdown, para no perder artículos ya guardados que
+        //    por algún motivo ya no coincidan por Marca).
+        // 3. Con esas dos listas se arma UN SOLO conjunto de opciones y se
+        //    agregan al campo con addSelectOption -> el dropdown nativo de
+        //    NetSuite YA NO muestra el catálogo completo, solo estas opciones.
+        const registros = buscarCondicionesComerciales(proveedorId, marcaId);
+        const opcionesArticulo = obtenerOpcionesArticuloParaProveedor(proveedorId, registros);
+
+        log.audit({
+            title: 'SL_VistaB - Opciones de Artículo generadas para el dropdown',
+            details: `proveedorId: ${proveedorId} | total opciones: ${opcionesArticulo.length}`
+        });
+
+        const itemField = sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo' });
+
+        if (opcionesArticulo.length > 0) {
+            itemField.addSelectOption({ value: '', text: '' });
+            opcionesArticulo.forEach((op) => {
+                itemField.addSelectOption({ value: op.id, text: op.text });
+            });
+        } else {
+            // Proveedor sin Marca configurada ni registros previos: no hay
+            // forma de "adivinar" su catálogo, así que se deja el picker
+            // nativo completo como fallback (mejor que dejar el campo
+            // inutilizable). Se loguea para que quede visible.
+            log.audit({
+                title: 'SL_VistaB - Proveedor sin artículos conocidos, se usa catálogo completo como fallback',
+                details: `proveedorId: ${proveedorId}`
+            });
+            itemField.source = 'item';
+        }
+        // ---------------------------------------------------------------------
+
+        // Se sigue mandando la lista de IDs permitidos como respaldo para el
+        // Client Script (por si en el futuro se agrega otra vía de edición).
+        const articulosPermitidosField = form.addField({
+            id: 'custpage_articulos_permitidos',
+            type: serverWidget.FieldType.LONGTEXT,
+            label: 'Articulos Permitidos'
+        });
+        articulosPermitidosField.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        articulosPermitidosField.defaultValue = JSON.stringify(opcionesArticulo.map((op) => op.id));
 
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
-        // Rango permitido 0-20 con decimales -> se valida en el Client Script
-        sublist.addField({ id: 'custpage_col_prontopago', type: serverWidget.FieldType.FLOAT, label: 'Pronto Pago % (0-20)' });
-        sublist.addField({ id: 'custpage_col_rebate', type: serverWidget.FieldType.FLOAT, label: 'Rebate % (0-20)' });
-        sublist.addField({ id: 'custpage_col_crecimiento', type: serverWidget.FieldType.FLOAT, label: 'Crec. Extraordinario % (0-20)' });
 
-        const registros = buscarCondicionesComerciales(proveedorId, marcaId);
+        // Las 3 columnas de % siempre se agregan (para no perder los otros
+        // 2 valores al guardar), pero solo la del "tipo" actual queda
+        // visible; las otras 2 se ocultan.
+        const colProntoPago = sublist.addField({ id: 'custpage_col_prontopago', type: serverWidget.FieldType.FLOAT, label: 'Pronto Pago % (0-20)' });
+        const colRebate = sublist.addField({ id: 'custpage_col_rebate', type: serverWidget.FieldType.FLOAT, label: 'Rebate % (0-20)' });
+        const colCrecimiento = sublist.addField({ id: 'custpage_col_crecimiento', type: serverWidget.FieldType.FLOAT, label: 'Crec. Extraordinario % (0-20)' });
+
+        const COLUMNAS_PERCENT = {
+            custpage_col_prontopago: colProntoPago,
+            custpage_col_rebate: colRebate,
+            custpage_col_crecimiento: colCrecimiento
+        };
+
+        Object.keys(COLUMNAS_PERCENT).forEach((colId) => {
+            if (colId !== tipoCfg.columnaVisible) {
+                COLUMNAS_PERCENT[colId].updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+            }
+        });
 
         log.debug({ title: 'SL_VistaB registros encontrados', details: registros.length });
 
@@ -130,6 +215,123 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         });
 
         context.response.writePage(form);
+    }
+
+    /**
+     * NUEVO: lee custentity_marca del Proveedor (List/Record sobre
+     * customlist_nso_list_marca) y devuelve el INTERNAL ID de la Marca.
+     */
+    function obtenerMarcaDelProveedor(proveedorId) {
+        try {
+            const fields = search.lookupFields({
+                type: search.Type.VENDOR,
+                id: proveedorId,
+                columns: ['custentity_marca']
+            });
+
+            let marcaId = fields.custentity_marca;
+            if (Array.isArray(marcaId)) marcaId = marcaId.length > 0 ? marcaId[0].value : null;
+
+            log.debug({ title: 'SL_VistaB obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId}` });
+            return marcaId || null;
+        } catch (e) {
+            log.error({ title: 'SL_VistaB - Error en obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | ${e.message}` });
+            return null;
+        }
+    }
+
+    /**
+     * ACTUALIZADO (reemplaza el approach de PO/Bill): devuelve un array
+     * de { id, text } de Artículos cuyo custitem_nso_marca coincida con
+     * la Marca del Proveedor (custentity_marca). "text" es el nombre/
+     * código del artículo, para poder armar las opciones del dropdown
+     * con addSelectOption.
+     */
+    function obtenerArticulosDelProveedor(proveedorId) {
+        const items = [];
+
+        if (!proveedorId) {
+            return items;
+        }
+
+        const marcaId = obtenerMarcaDelProveedor(proveedorId);
+
+        if (!marcaId) {
+            log.audit({ title: 'SL_VistaB obtenerArticulosDelProveedor - Proveedor sin custentity_marca', details: `proveedorId: ${proveedorId}` });
+            return items;
+        }
+
+        try {
+            const s = search.create({
+                type: search.Type.ITEM,
+                filters: [
+                    ['custitem_nso_marca', 'anyof', marcaId]
+                ],
+                columns: ['itemid']
+            });
+
+            s.run().each((r) => {
+                items.push({ id: String(r.id), text: r.getValue({ name: 'itemid' }) || String(r.id) });
+                return true;
+            });
+
+            log.debug({
+                title: 'SL_VistaB obtenerArticulosDelProveedor - resultado',
+                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | items encontrados: ${items.length}`
+            });
+        } catch (e) {
+            log.error({
+                title: 'SL_VistaB - Error en obtenerArticulosDelProveedor',
+                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | ${e.message}`
+            });
+        }
+
+        return items;
+    }
+
+    /**
+     * Combina los Artículos filtrados por Marca del Proveedor con los
+     * Artículos que ya están guardados en Condiciones Comerciales para
+     * este Proveedor+Marca (por si alguno ya no coincide por Marca,
+     * para no "perder" datos existentes del dropdown).
+     * Devuelve un array de { id, text } sin duplicados.
+     */
+    function obtenerOpcionesArticuloParaProveedor(proveedorId, registrosExistentes) {
+        const delMarca = obtenerArticulosDelProveedor(proveedorId);
+
+        const idsYaIncluidos = {};
+        const opciones = [];
+
+        delMarca.forEach((it) => {
+            if (!idsYaIncluidos[it.id]) {
+                idsYaIncluidos[it.id] = true;
+                opciones.push(it);
+            }
+        });
+
+        (registrosExistentes || []).forEach((r) => {
+            const itemId = String(r.itemId);
+            if (itemId && !idsYaIncluidos[itemId]) {
+                idsYaIncluidos[itemId] = true;
+                opciones.push({ id: itemId, text: obtenerNombreArticulo(itemId) });
+                log.audit({
+                    title: 'SL_VistaB - Artículo agregado al dropdown desde registro existente (no coincide por Marca)',
+                    details: `itemId: ${itemId}`
+                });
+            }
+        });
+
+        return opciones;
+    }
+
+    function obtenerNombreArticulo(itemId) {
+        try {
+            const fields = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['itemid'] });
+            return fields.itemid || String(itemId);
+        } catch (e) {
+            log.error({ title: 'SL_VistaB - Error en obtenerNombreArticulo', details: `itemId: ${itemId} | ${e.message}` });
+            return String(itemId);
+        }
     }
 
     function buscarCondicionesComerciales(proveedorId, marcaId) {
@@ -207,7 +409,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             '</script>' +
             'Guardado. Puede cerrar esta ventana si no se cierra sola.' +
             '</body></html>'
-        ); 
+        );
     }
 
     return { onRequest };

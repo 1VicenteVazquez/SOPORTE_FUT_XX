@@ -3,7 +3,6 @@
  * @NScriptType ClientScript
  *
  * CS_CondicionesComerciales_VistaA.js
- * TESTT 2 
  */
 define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
 
@@ -18,9 +17,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
     };
 
     function pageInit(context) {
-        // Los links "VER" del sublist son HTML crudo (ver
-        // SL_CondicionesComerciales_VistaA.js), así que necesitan poder
-        // llamar a esta función desde fuera del módulo -> se expone en window.
         window.abrirEdicionTipo = abrirEdicionTipo;
         console.log('CS_VistaA.pageInit -> abrirEdicionTipo expuesta en window.');
     }
@@ -29,8 +25,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         const rec = currentRecord.get();
         const proveedor = rec.getValue({ fieldId: 'custpage_proveedor' });
         const marca = rec.getValue({ fieldId: 'custpage_marca' });
-
-        console.log('CS_VistaA.buscarCondiciones -> proveedor:', proveedor, '| marca:', marca);
 
         if (!proveedor || !marca) {
             alert('Selecciona Proveedor y Marca para buscar.');
@@ -43,22 +37,13 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             params: { proveedor: proveedor, marca: marca }
         });
 
-        console.log('CS_VistaA.buscarCondiciones -> suiteletUrl:', suiteletUrl);
-
         window.location.href = suiteletUrl;
     }
 
-    /**
-     * Llamada desde el link "VER" de cada fila de la tabla (HTML crudo
-     * generado en el Suitelet). Abre el popup de Vista B ya filtrado a
-     * la Condición específica (tipo: pronto_pago | rebate | crecimiento).
-     */
     function abrirEdicionTipo(tipo) {
         const rec = currentRecord.get();
         const proveedor = rec.getValue({ fieldId: 'custpage_proveedor' });
         const marca = rec.getValue({ fieldId: 'custpage_marca' });
-
-        console.log('CS_VistaA.abrirEdicionTipo -> tipo:', tipo, '| proveedor:', proveedor, '| marca:', marca);
 
         if (!proveedor || !marca) {
             alert('Selecciona Proveedor y Marca antes de ver el detalle.');
@@ -71,8 +56,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             params: { proveedor: proveedor, marca: marca, tipo: tipo, hideNavBar: 'T' }
         });
 
-        console.log('CS_VistaA.abrirEdicionTipo -> popupUrl:', popupUrl);
-
         const popupWindow = window.open(
             popupUrl,
             'CondicionesComercialesPopup',
@@ -80,14 +63,37 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         );
 
         if (!popupWindow) {
-            console.warn('CS_VistaA.abrirEdicionTipo -> window.open devolvió null: probablemente el navegador bloqueó el popup.');
             alert('El navegador bloqueó la ventana emergente. Permite popups para este sitio e inténtalo de nuevo.');
         }
     }
 
+    /**
+     * ACTUALIZADO: Al elegir un Proveedor, la página se recarga para
+     * que el Suitelet pueda armar el campo de Marca ÚNICAMENTE con
+     * las opciones que le pertenecen a ese proveedor.
+     */
     function fieldChanged(context) {
-        // Reservado por si se requiere validación o filtrado adicional
-        // al cambiar Proveedor/Marca sin recargar la página.
+        const rec = context.currentRecord;
+
+        if (context.fieldId === 'custpage_proveedor') {
+            const proveedor = rec.getValue({ fieldId: 'custpage_proveedor' });
+            
+            // Resolvemos la URL de este mismo Suitelet
+            let params = {};
+            if (proveedor) {
+                params.proveedor = proveedor;
+            }
+
+            const suiteletUrl = url.resolveScript({
+                scriptId: SL_VISTA_A.scriptId,
+                deploymentId: SL_VISTA_A.deploymentId,
+                params: params
+            });
+
+            // Evitamos que NetSuite pregunte si queremos salir sin guardar
+            window.onbeforeunload = null; 
+            window.location.href = suiteletUrl;
+        }
     }
 
     return {
