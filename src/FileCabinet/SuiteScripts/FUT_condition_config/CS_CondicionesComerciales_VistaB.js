@@ -14,6 +14,10 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const filtro = rec.getValue('custpage_filtro') || '';
             recargarVentana(rec, filtro, pageNum);
         };
+        
+        window.cerrarPopup = function() {
+            window.close();
+        };
     }
 
     function fieldChanged(context) {
@@ -29,14 +33,18 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         const tipoId = rec.getValue('custpage_tipo_id');
         const marcaId = rec.getValue('custpage_marca_id');
         const proveedorId = rec.getValue('custpage_proveedor_id');
-
+        
+        // Conservar el modo (Edit/View) actual de la URL
         const qs = new URLSearchParams(window.location.search);
+        const mode = qs.get('mode') || 'view';
+
         qs.set('padreId', padreId);
         qs.set('tipo', tipoId);
         qs.set('marca', marcaId);
         qs.set('proveedor', proveedorId);
         qs.set('filtro', filtro);
         qs.set('page', page);
+        qs.set('mode', mode);
 
         window.onbeforeunload = null; 
         window.location.href = `${window.location.href.split('?')[0]}?${qs.toString()}`;

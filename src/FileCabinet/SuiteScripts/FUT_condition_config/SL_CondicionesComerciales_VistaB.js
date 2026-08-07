@@ -16,27 +16,47 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
 
     function renderForm(context) {
         const params = context.request.parameters;
-        const form = serverWidget.createForm({ title: 'Asignación de Condiciones' });
+        
+        // Control de modo lectura/edición
+        const isEdit = (params.mode === 'edit');
+        const titulo = isEdit ? 'Asignación de Condiciones (Edición)' : 'Asignación de Condiciones (Consulta)';
+        
+        // Se agrega hideNavBar: true para ocultar el menú de NetSuite
+        const form = serverWidget.createForm({ title: titulo, hideNavBar: true });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
+
+        // Script inyectado para el botón cerrar
+        form.addField({ id: 'custpage_close_script', type: serverWidget.FieldType.INLINEHTML, label: ' ' })
+            .defaultValue = "<script>function cerrarPopup() { window.close(); }</script>";
 
         form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.padreId;
         form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
         form.addField({ id: 'custpage_marca_id', type: serverWidget.FieldType.TEXT, label: 'Marca' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.marca;
         form.addField({ id: 'custpage_proveedor_id', type: serverWidget.FieldType.TEXT, label: 'Prov' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.proveedor;
         form.addField({ id: 'custpage_payload', type: serverWidget.FieldType.LONGTEXT, label: 'Payload' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-
+        
         form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre' }).defaultValue = params.filtro || '';
         
         const htmlPaginacion = form.addField({ id: 'custpage_html_paginacion', type: serverWidget.FieldType.INLINEHTML, label: ' ' });
 
-        form.addSubmitButton({ label: 'Guardar Cambios' });
+        // Botones condicionados al modo
+        if (isEdit) {
+            form.addSubmitButton({ label: 'Guardar Cambios' });
+            form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'cerrarPopup' });
+        } else {
+            form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'cerrarPopup' });
+        }
 
         const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
         sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'Reg ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Aplica' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
-        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: '% Condición' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
-        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Observaciones / Rines' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.ENTRY });
+        
+        // Bloqueo de campos si está en modo View
+        const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
+        
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Aplica' }).updateDisplayType({ displayType: displayModo });
+        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: '% Condición' }).updateDisplayType({ displayType: displayModo });
+        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Observaciones / Rines' }).updateDisplayType({ displayType: displayModo });
 
         if (params.marca && params.padreId) {
             cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', parseInt(params.page) || 0, htmlPaginacion);
@@ -106,7 +126,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             // 3. RENDERIZADO DE LAS FILAS
             let line = 0;
             pagedData.fetch({ index: pageIndex }).data.forEach(res => {
-                const itemIdStr = String(res.id); // CASTING ESTRICTO
+                const itemIdStr = String(res.id); 
                 const dataHijo = registrosHijo[itemIdStr];
                 
                 sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
@@ -147,10 +167,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         }
 
         context.response.write(`
-            <script>
-                alert('Procesando cambios en la base de datos...');
-                window.close();
-            </script>
+            <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+                <h2 style="color:#005587;">Procesando cambios en segundo plano...</h2>
+                <script>setTimeout(function(){ window.close(); }, 2000);</script>
+            </body></html>
         `);
     }
 
