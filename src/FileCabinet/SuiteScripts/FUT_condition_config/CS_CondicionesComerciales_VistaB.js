@@ -9,11 +9,8 @@
  * - Los Artículos se agregan directo en la tabla (columna Artículo editable
  *   + botón nativo "Add" de NetSuite) - ya no hay selector externo.
  * - validateLine evita agregar el mismo Artículo dos veces.
- * - NUEVO: validateLine también rechaza Artículos que NO correspondan al
- *   Proveedor seleccionado (según su historial de Purchase Order/Bill,
- *   calculado en el Suitelet y recibido aquí en custpage_articulos_permitidos).
- *   Esto evita el problema original: agregar un Artículo de una Marca
- *   distinta a la que se estaba filtrando en Vista A/B.
+ * - ACTUALIZADO: validateLine también rechaza Artículos que NO correspondan a la
+ *   marca oficial del Proveedor seleccionado.
  * - Al guardar, detecta qué líneas cambiaron respecto al estado original
  *   y arma el JSON que el Suitelet (Vista B) recibirá por POST.
  */
@@ -27,7 +24,7 @@ define(['N/currentRecord'], (currentRecord) => {
 
     let lineasOriginales = {};
 
-    // NUEVO: array de internal IDs (string) de Artículos permitidos para
+    // Array de internal IDs (string) de Artículos permitidos para
     // el Proveedor de este popup. Se llena en pageInit leyendo el campo
     // oculto custpage_articulos_permitidos que manda el Suitelet.
     let articulosPermitidos = [];
@@ -45,7 +42,7 @@ define(['N/currentRecord'], (currentRecord) => {
 
         console.log('CS_VistaB.pageInit -> snapshot original:', lineasOriginales);
 
-        // ---- NUEVO: cargar lista de Artículos permitidos ----
+        // Cargar lista de Artículos permitidos
         try {
             const raw = rec.getValue({ fieldId: 'custpage_articulos_permitidos' });
             articulosPermitidos = raw ? JSON.parse(raw) : [];
@@ -54,8 +51,7 @@ define(['N/currentRecord'], (currentRecord) => {
             articulosPermitidos = [];
         }
 
-        console.log('CS_VistaB.pageInit -> artículos permitidos para este Proveedor:', articulosPermitidos.length, articulosPermitidos);
-        // -------------------------------------------------------
+        console.log('CS_VistaB.pageInit -> artículos permitidos para esta Marca:', articulosPermitidos.length, articulosPermitidos);
     }
 
     function snapshotLinea(rec, line) {
@@ -96,8 +92,8 @@ define(['N/currentRecord'], (currentRecord) => {
     /**
      * Se dispara al confirmar (Add/OK) un renglón del sublist, ya sea
      * nuevo o editado. Aquí evitamos que el mismo Artículo quede
-     * duplicado en la tabla, y (NUEVO) evitamos que se agregue un
-     * Artículo que no corresponda al Proveedor seleccionado.
+     * duplicado en la tabla, y evitamos que se agregue un
+     * Artículo que no corresponda a la marca del Proveedor.
      */
     function validateLine(context) {
         const { sublistId, currentRecord: rec } = context;
@@ -111,13 +107,11 @@ define(['N/currentRecord'], (currentRecord) => {
             return false;
         }
 
-        // ---- NUEVO: el Artículo debe pertenecer al catálogo del Proveedor ----
-        // Si articulosPermitidos viene vacío, significa que el Proveedor no
-        // tiene historial de Purchase Order/Bill (ej. proveedor nuevo o de
-        // prueba) -> no se restringe, para no bloquear casos legítimos.
+        // ---- ACTUALIZADO: el Artículo debe pertenecer al catálogo de la Marca del Proveedor ----
         if (articulosPermitidos.length > 0 && articulosPermitidos.indexOf(String(itemActual)) === -1) {
-            console.warn('CS_VistaB.validateLine -> Artículo rechazado, no pertenece al Proveedor:', itemActual);
-            alert('Ese Artículo no corresponde a este Proveedor (no aparece en su historial de Órdenes de Compra / Facturas). Selecciona un Artículo que sí haya sido comprado a este Proveedor.');
+            console.warn('CS_VistaB.validateLine -> Artículo rechazado, no pertenece a la marca del Proveedor:', itemActual);
+            // Mensaje de alerta actualizado
+            alert('Ese Artículo no pertenece a la marca oficial distribuida por este Proveedor.');
             return false;
         }
         // ------------------------------------------------------------------

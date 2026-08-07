@@ -18,19 +18,21 @@
  * con decimales. La validación en sí vive en el Client Script
  * (CS_CondicionesComerciales_VistaB.js / validateField).
  *
- * NUEVO (filtro Proveedor -> Artículo):
+ * ACTUALIZADO (filtro Proveedor -> Artículo vía Marca del Proveedor):
  * El dropdown de "Artículo" del sublist ya NO usa source:'item' (eso
- * traía el catálogo completo, ~9800 artículos). En su lugar, el campo se
- * arma con addSelectOption(), poblado únicamente con los Artículos que:
- *   1. El Proveedor ha comprado/facturado según su historial de
- *      Purchase Order + Bill (obtenerArticulosDelProveedor), y/o
- *   2. Ya están guardados en Condiciones Comerciales para ese
+ * traía el catálogo completo, ~9800 artículos), ni tampoco el historial
+ * de Purchase Order/Bill. En su lugar, se lee el campo custentity_marca
+ * del Proveedor (List/Record sobre customlist_nso_list_marca, el mismo
+ * que usa el Item en custitem_nso_marca) y se filtran directamente los
+ * Artículos cuyo custitem_nso_marca coincida con esa Marca.
+ * El campo se arma con addSelectOption(), poblado únicamente con:
+ *   1. Los Artículos cuyo custitem_nso_marca = Marca del Proveedor.
+ *   2. Los Artículos ya guardados en Condiciones Comerciales para ese
  *      Proveedor+Marca (para no perder datos si algún artículo ya no
- *      aparece en compras recientes).
- * Si el Proveedor no tiene NINGÚN historial ni registros previos (caso
- * poco común, ej. proveedor recién dado de alta), se usa el catálogo
- * completo (source:'item') como fallback, para no dejar el campo
- * inutilizable.
+ *      tuviera la Marca correcta seteada).
+ * Si el Proveedor no tiene Marca (custentity_marca vacío) ni registros
+ * previos, se usa el catálogo completo (source:'item') como fallback,
+ * para no dejar el campo inutilizable.
  * El Client Script conserva además una validación de respaldo
  * (validateLine) por si en el futuro se agrega otra vía de edición.
  */
@@ -132,13 +134,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         const idCol = sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'ID' });
         idCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
 
-        // ---- NUEVO: Artículo -> dropdown restringido al catálogo del Proveedor ----
-        // 1. Se buscan los artículos que el Proveedor ha comprado/facturado
-        //    (Purchase Order + Bill).
+        // ---- Artículo -> dropdown restringido al catálogo de la Marca del Proveedor ----
+        // 1. Se lee custentity_marca del Proveedor y se buscan los
+        //    Artículos cuyo custitem_nso_marca coincida (por ID).
         // 2. Se cargan también los registros ya guardados de Condiciones
         //    Comerciales para este Proveedor+Marca (necesitamos saberlo ANTES
         //    de armar el dropdown, para no perder artículos ya guardados que
-        //    por algún motivo ya no aparezcan en compras recientes).
+        //    por algún motivo ya no coincidan por Marca).
         // 3. Con esas dos listas se arma UN SOLO conjunto de opciones y se
         //    agregan al campo con addSelectOption -> el dropdown nativo de
         //    NetSuite YA NO muestra el catálogo completo, solo estas opciones.
@@ -158,10 +160,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                 itemField.addSelectOption({ value: op.id, text: op.text });
             });
         } else {
-            // Proveedor sin ningún historial de compra ni registros previos:
-            // no hay forma de "adivinar" su catálogo, así que se deja el
-            // picker nativo completo como fallback (mejor que dejar el
-            // campo inutilizable). Se loguea para que quede visible.
+            // Proveedor sin Marca configurada ni registros previos: no hay
+            // forma de "adivinar" su catálogo, así que se deja el picker
+            // nativo completo como fallback (mejor que dejar el campo
+            // inutilizable). Se loguea para que quede visible.
             log.audit({
                 title: 'SL_VistaB - Proveedor sin artículos conocidos, se usa catálogo completo como fallback',
                 details: `proveedorId: ${proveedorId}`
@@ -216,10 +218,34 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
     }
 
     /**
-     * NUEVO: devuelve un array de { id, text } de Artículos que el
-     * Proveedor ha comprado/facturado históricamente, según Purchase
-     * Order + Bill. "text" es el nombre/código del artículo, para poder
-     * armar las opciones del dropdown con addSelectOption.
+     * NUEVO: lee custentity_marca del Proveedor (List/Record sobre
+     * customlist_nso_list_marca) y devuelve el INTERNAL ID de la Marca.
+     */
+    function obtenerMarcaDelProveedor(proveedorId) {
+        try {
+            const fields = search.lookupFields({
+                type: search.Type.VENDOR,
+                id: proveedorId,
+                columns: ['custentity_marca']
+            });
+
+            let marcaId = fields.custentity_marca;
+            if (Array.isArray(marcaId)) marcaId = marcaId.length > 0 ? marcaId[0].value : null;
+
+            log.debug({ title: 'SL_VistaB obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId}` });
+            return marcaId || null;
+        } catch (e) {
+            log.error({ title: 'SL_VistaB - Error en obtenerMarcaDelProveedor', details: `proveedorId: ${proveedorId} | ${e.message}` });
+            return null;
+        }
+    }
+
+    /**
+     * ACTUALIZADO (reemplaza el approach de PO/Bill): devuelve un array
+     * de { id, text } de Artículos cuyo custitem_nso_marca coincida con
+     * la Marca del Proveedor (custentity_marca). "text" es el nombre/
+     * código del artículo, para poder armar las opciones del dropdown
+     * con addSelectOption.
      */
     function obtenerArticulosDelProveedor(proveedorId) {
         const items = [];
@@ -228,38 +254,35 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             return items;
         }
 
+        const marcaId = obtenerMarcaDelProveedor(proveedorId);
+
+        if (!marcaId) {
+            log.audit({ title: 'SL_VistaB obtenerArticulosDelProveedor - Proveedor sin custentity_marca', details: `proveedorId: ${proveedorId}` });
+            return items;
+        }
+
         try {
             const s = search.create({
-                type: search.Type.TRANSACTION,
+                type: search.Type.ITEM,
                 filters: [
-                    ['type', 'anyof', ['PurchOrd', 'VendBill']],
-                    'AND',
-                    ['mainline', 'is', 'F'],
-                    'AND',
-                    ['item', 'noneof', '@NONE@'],
-                    'AND',
-                    ['entity', 'anyof', proveedorId]
+                    ['custitem_nso_marca', 'anyof', marcaId]
                 ],
-                columns: [
-                    search.createColumn({ name: 'item', summary: 'GROUP' })
-                ]
+                columns: ['itemid']
             });
 
             s.run().each((r) => {
-                const itemId = r.getValue({ name: 'item', summary: 'GROUP' });
-                const itemText = r.getText({ name: 'item', summary: 'GROUP' });
-                if (itemId) items.push({ id: String(itemId), text: itemText || String(itemId) });
+                items.push({ id: String(r.id), text: r.getValue({ name: 'itemid' }) || String(r.id) });
                 return true;
             });
 
             log.debug({
                 title: 'SL_VistaB obtenerArticulosDelProveedor - resultado',
-                details: `proveedorId: ${proveedorId} | items encontrados: ${items.length}`
+                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | items encontrados: ${items.length}`
             });
         } catch (e) {
             log.error({
                 title: 'SL_VistaB - Error en obtenerArticulosDelProveedor',
-                details: `proveedorId: ${proveedorId} | ${e.message}`
+                details: `proveedorId: ${proveedorId} | marcaId: ${marcaId} | ${e.message}`
             });
         }
 
@@ -267,19 +290,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
     }
 
     /**
-     * NUEVO: combina los Artículos del historial de PO/Bill con los
+     * Combina los Artículos filtrados por Marca del Proveedor con los
      * Artículos que ya están guardados en Condiciones Comerciales para
-     * este Proveedor+Marca (por si alguno ya no aparece en compras
-     * recientes, para no "perder" datos existentes del dropdown).
+     * este Proveedor+Marca (por si alguno ya no coincide por Marca,
+     * para no "perder" datos existentes del dropdown).
      * Devuelve un array de { id, text } sin duplicados.
      */
     function obtenerOpcionesArticuloParaProveedor(proveedorId, registrosExistentes) {
-        const delHistorial = obtenerArticulosDelProveedor(proveedorId);
+        const delMarca = obtenerArticulosDelProveedor(proveedorId);
 
         const idsYaIncluidos = {};
         const opciones = [];
 
-        delHistorial.forEach((it) => {
+        delMarca.forEach((it) => {
             if (!idsYaIncluidos[it.id]) {
                 idsYaIncluidos[it.id] = true;
                 opciones.push(it);
@@ -292,7 +315,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                 idsYaIncluidos[itemId] = true;
                 opciones.push({ id: itemId, text: obtenerNombreArticulo(itemId) });
                 log.audit({
-                    title: 'SL_VistaB - Artículo agregado al dropdown desde registro existente (no está en historial de PO/Bill)',
+                    title: 'SL_VistaB - Artículo agregado al dropdown desde registro existente (no coincide por Marca)',
                     details: `itemId: ${itemId}`
                 });
             }

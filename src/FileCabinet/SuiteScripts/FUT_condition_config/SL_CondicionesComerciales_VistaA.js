@@ -4,27 +4,10 @@
  * @NModuleScope SameAccount
  *
  * SL_CondicionesComerciales_VistaA.js
- *
- * Pantalla principal: filtros Proveedor / Marca + tabla con las 3
- * Condiciones Comerciales fijas (Pronto Pago, Rebate, Crecimiento
- * Extraordinario). Cada fila muestra:
- *   ACTIVO (checkbox de solo lectura, resumen) | CONDICIÓN COMERCIAL | VER
- *
- * El botón VER de cada fila abre SL_CondicionesComerciales_VistaB.js en
- * una ventana flotante, filtrado a esa Condición específica (parámetro
- * "tipo": pronto_pago | rebate | crecimiento).
- *
- * NOTA: el checkbox ACTIVO de esta pantalla es un resumen de solo lectura:
- * se marca si existe al menos un Artículo, para ese Proveedor+Marca, con
- * custrecord_cc_activo = true Y ese porcentaje > 0. La edición real
- * (activar/desactivar por Artículo) ocurre dentro del popup (Vista B).
- * Si el negocio requiere que este checkbox sea editable a nivel Condición,
- * avísame y lo ajustamos.
  */
 define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) => {
 
     const CUSTOM_RECORD_ID = 'customrecord_fut_condiciones_comerciales';
-    const MARCA_LIST_ID = 'customlist_nso_list_marca';
 
     const FIELD = {
         PROVEEDOR: 'custrecord_cc_proveedor',
@@ -36,7 +19,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
         CRECIMIENTO: 'custrecord_cc_crecimiento'
     };
 
-    // Las 3 Condiciones Comerciales fijas que existen hoy en el negocio.
     const TIPOS_CONDICION = [
         { tipo: 'pronto_pago', label: 'Pronto Pago', campoPercent: FIELD.PRONTO_PAGO },
         { tipo: 'rebate', label: 'Rebate', campoPercent: FIELD.REBATE },
@@ -44,8 +26,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
     ];
 
     const onRequest = (context) => {
-        log.debug({ title: 'SL_VistaA onRequest', details: `Método: ${context.request.method} | Params: ${JSON.stringify(context.request.parameters)}` });
-
         if (context.request.method === 'GET') {
             renderForm(context);
         }
@@ -54,9 +34,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
     function renderForm(context) {
         const params = context.request.parameters;
         const proveedorId = params.proveedor || '';
-        const marcaId = params.marca || '';
-
-        log.debug({ title: 'SL_VistaA renderForm', details: `proveedorId: ${proveedorId} | marcaId: ${marcaId}` });
+        let marcaId = params.marca || '';
 
         const form = serverWidget.createForm({ title: 'Condiciones Comerciales por Proveedor' });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaA.js';
@@ -70,14 +48,50 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
         proveedorField.isMandatory = true;
         if (proveedorId) proveedorField.defaultValue = proveedorId;
 
+        // ACTUALIZADO: El campo de marca se crea SIN "source" para que nazca vacío
         const marcaField = form.addField({
             id: 'custpage_marca',
             type: serverWidget.FieldType.SELECT,
-            label: 'Marca',
-            source: MARCA_LIST_ID
+            label: 'Marca'
         });
         marcaField.isMandatory = true;
-        if (marcaId) marcaField.defaultValue = marcaId;
+        marcaField.addSelectOption({ value: '', text: '' });
+
+        // Si ya seleccionaron un proveedor, buscamos sus marcas exclusivas
+        if (proveedorId) {
+            try {
+                const vendorFields = search.lookupFields({
+                    type: search.Type.VENDOR,
+                    id: proveedorId,
+                    columns: ['custentity_marca']
+                });
+
+                let marcasProveedor = vendorFields.custentity_marca;
+                
+                // Aseguramos que sea un arreglo iterar sobre él
+                if (!Array.isArray(marcasProveedor)) {
+                    marcasProveedor = marcasProveedor ? [marcasProveedor] : [];
+                }
+
+                // Inyectamos ÚNICAMENTE las marcas de este proveedor al dropdown
+                marcasProveedor.forEach(m => {
+                    marcaField.addSelectOption({ value: m.value, text: m.text });
+                });
+
+                // Comodidad: Si el proveedor solo tiene 1 marca, la seleccionamos por default
+                if (marcasProveedor.length === 1 && !marcaId) {
+                    marcaId = marcasProveedor[0].value;
+                }
+
+            } catch (e) {
+                log.error({ title: 'SL_VistaA - Error filtrando marcas', details: e.message });
+            }
+        }
+
+        // Asignamos el valor por default de la marca (ya sea que venía por URL o se auto-asignó)
+        if (marcaId) {
+            marcaField.defaultValue = marcaId;
+        }
 
         form.addButton({
             id: 'custpage_btn_buscar',
@@ -94,10 +108,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
         sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Condición Comercial' });
 
-        // Columna de acción con HTML crudo: NetSuite no permite botones
-        // individuales por fila en un sublist tipo LIST, así que se arma
-        // un link con estilo de botón que llama a una función global del
-        // Client Script (ver abrirEdicionTipo en CS_CondicionesComerciales_VistaA.js).
         const accionCol = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Acción' });
         accionCol.updateDisplayType({ displayType: serverWidget.FieldDisplayType.NORMAL });
 
@@ -113,17 +123,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/log'], (serverWidget, search, log) =
                     value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cfg.tipo}')" style="display:inline-block;background:#607799;color:#fff;padding:3px 14px;border-radius:3px;text-decoration:none;font-weight:bold;">VER</a>`
                 });
             });
-
-            log.debug({ title: 'SL_VistaA filas renderizadas', details: TIPOS_CONDICION.length });
         }
 
         context.response.writePage(form);
     }
 
-    /**
-     * true si existe al menos un Artículo (para ese Proveedor+Marca) con
-     * custrecord_cc_activo = true y el porcentaje de ese tipo > 0.
-     */
     function existeCondicionActiva(proveedorId, marcaId, campoPercent) {
         try {
             const s = search.create({
