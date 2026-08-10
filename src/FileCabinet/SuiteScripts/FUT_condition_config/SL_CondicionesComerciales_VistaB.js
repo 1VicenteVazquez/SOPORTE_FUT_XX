@@ -7,7 +7,7 @@
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
-    const PAGE_SIZE = 50; 
+    const PAGE_SIZE = 15;
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -24,10 +24,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         // Se agrega hideNavBar: true para ocultar el menú de NetSuite
         const form = serverWidget.createForm({ title: titulo, hideNavBar: true });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
-
-        // Script inyectado para el botón cerrar
-        form.addField({ id: 'custpage_close_script', type: serverWidget.FieldType.INLINEHTML, label: ' ' })
-            .defaultValue = "<script>function cerrarPopup() { window.close(); }</script>";
 
         form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.padreId;
         form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
@@ -48,15 +44,27 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         }
 
         const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
+        
+        // El ID oculto lo mantenemos igual, no afecta la vista
         sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'Reg ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         
         // Bloqueo de campos si está en modo View
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Aplica' }).updateDisplayType({ displayType: displayModo });
-        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: '% Condición' }).updateDisplayType({ displayType: displayModo });
-        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Observaciones / Rines' }).updateDisplayType({ displayType: displayModo });
+        // 1. Activo
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
+        
+        // 2. Artículo
+        sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        
+        // 3. Tamaño de Rin (Campo informativo/lectura)
+        sublist.addField({ id: 'custpage_col_rin', type: serverWidget.FieldType.TEXT, label: 'Tamaño de Rin' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // 4. Descripción Porcentaje
+        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción Porcentaje' }).updateDisplayType({ displayType: displayModo });
+
+        // 5. Porcentaje de Descuento
+        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: 'Porcentaje de Descuento' }).updateDisplayType({ displayType: displayModo });
 
         if (params.marca && params.padreId) {
             cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', parseInt(params.page) || 0, htmlPaginacion);
@@ -80,11 +88,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             const valorActivo = res.getValue('custrecord_fut_activo');
             
             if (idArticuloStr) {
-                registrosHijo[idArticuloStr] = { 
-                    id: String(res.id), 
-                    activo: (valorActivo === 'T' || valorActivo === true), 
-                    pct: res.getValue('custrecord_fut_porcentaje'), 
-                    desc: res.getValue('custrecord_fut_descripcion') 
+                registrosHijo[idArticuloStr] = {
+                    id: String(res.id),
+                    activo: (valorActivo === 'T' || valorActivo === true),
+                    pct: res.getValue('custrecord_fut_porcentaje'),
+                    desc: res.getValue('custrecord_fut_descripcion')
                 };
             }
             return true;
@@ -92,60 +100,94 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
 
         log.debug('VISTA B - Artículos Encontrados en BD', Object.keys(registrosHijo).length + ' registros extraídos.');
 
-        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS
+        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS (Agregamos 'custitem_diametro_rin' en columns)
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
 
-        const pagedData = search.create({ type: search.Type.ITEM, filters: filtrosItem, columns: ['internalid', 'itemid'] }).runPaged({ pageSize: PAGE_SIZE });
+        const pagedData = search.create({ 
+            type: search.Type.ITEM, 
+            filters: filtrosItem, 
+            columns: ['internalid', 'itemid', 'custitem_diametro_rin'] 
+        }).runPaged({ pageSize: PAGE_SIZE });
 
-        // DISEÑO DE PAGINACIÓN 
+        // DISEÑO DE PAGINACIÓN ESTILO NETSUITE (SIN CUADROS)
         const totalPages = pagedData.pageRanges.length;
         if (totalPages > 0) {
-            let htmlBtns = `<div style="margin: 10px 0; font-family: sans-serif; display: flex; align-items: center; gap: 5px; font-size: 13px;">`;
-            htmlBtns += `<span style="margin-right: 15px; font-weight: bold; color: #555;">Página ${pageIndex + 1} de ${totalPages}</span>`;
+            let htmlBtns = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; font-size: 13px; color: #333;">`;
+            htmlBtns += `<span style="margin-right: 15px;">Página ${pageIndex + 1} de ${totalPages}</span>`;
+            
             if (pageIndex > 0) {
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(0); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Primera">&laquo;</a>`;
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Anterior">&lsaquo; Anterior</a>`;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(0); return false;" style="color: #255599; text-decoration: none; margin-right: 5px;" title="Primera">&laquo; Primera</a> | `;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="color: #255599; text-decoration: none; margin-right: 5px;" title="Anterior">&lsaquo; Anterior</a> | `;
             }
+            
             let startPage = Math.max(0, pageIndex - 2);
             let endPage = Math.min(totalPages - 1, pageIndex + 2);
+            
             for (let i = startPage; i <= endPage; i++) {
                 let isCurrent = (i === pageIndex);
-                let bg = isCurrent ? '#005587' : '#fff';
-                let txt = isCurrent ? '#fff' : '#005587';
-                let weight = isCurrent ? 'bold' : 'normal';
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${i}); return false;" style="padding: 4px 10px; background: ${bg}; color: ${txt}; font-weight: ${weight}; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;">${i+1}</a>`;
+                let style = isCurrent ? 'font-weight: bold; color: #000; text-decoration: none;' : 'color: #255599; text-decoration: none;';
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${i}); return false;" style="${style} margin: 0 5px;">${i+1}</a>`;
+                if (i < endPage) htmlBtns += ` | `;
             }
+            
             if (pageIndex < totalPages - 1) {
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Siguiente">Siguiente &rsaquo;</a>`;
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${totalPages - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Última">&raquo;</a>`;
+                htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="color: #255599; text-decoration: none; margin-left: 5px;" title="Siguiente">Siguiente &rsaquo;</a>`;
+                htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${totalPages - 1}); return false;" style="color: #255599; text-decoration: none; margin-left: 5px;" title="Última">Última &raquo;</a>`;
             }
             htmlBtns += `</div>`;
             htmlPaginacion.defaultValue = htmlBtns;
 
             // 3. RENDERIZADO DE LAS FILAS
             let line = 0;
-            pagedData.fetch({ index: pageIndex }).data.forEach(res => {
-                const itemIdStr = String(res.id); 
+            
+            // Obtenemos los datos de la página actual
+            let currentPageData = pagedData.fetch({ index: pageIndex }).data;
+
+            // Ordenar los datos para que los artículos que ya existen en "registrosHijo" salgan al inicio de la tabla
+            currentPageData.sort((a, b) => {
+                const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
+                const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
+                return tieneB - tieneA;
+            });
+
+            // Iteramos sobre los datos ya ordenados
+            currentPageData.forEach(res => {
+                const itemIdStr = String(res.id);
                 const dataHijo = registrosHijo[itemIdStr];
                 
+                const tamanoRin = res.getText('custitem_diametro_rin') || res.getValue('custitem_diametro_rin') || '';
+                const txtPorDefecto = "REBATE"; 
+                
                 sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
+                
+                if (tamanoRin) {
+                    sublist.setSublistValue({ id: 'custpage_col_rin', line: line, value: tamanoRin });
+                }
                 
                 if (dataHijo) {
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
                     sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
                     
+                    // LÓGICA CORREGIDA: Si existe el registro, respetamos su descripción (incluso si la dejó en blanco intencionalmente)
+                    let descFinal = (dataHijo.desc !== null && dataHijo.desc !== undefined) ? dataHijo.desc : txtPorDefecto;
+                    
+                    // Solo inyectamos el valor si no está completamente vacío (evita error de NetSuite)
+                    if (descFinal !== '') {
+                        sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
+                    }
+                    
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: dataHijo.pct });
                     }
-                    if (dataHijo.desc) {
-                        sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: dataHijo.desc });
-                    }
+                } else {
+                    // Si es nuevo, ponemos el default
+                    sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: txtPorDefecto });
                 }
                 line++;
             });
         } else {
-            htmlPaginacion.defaultValue = `<div style="margin: 10px 0; font-family: sans-serif; color: #888;">No se encontraron artículos.</div>`;
+            htmlPaginacion.defaultValue = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; color: #888;">No se encontraron artículos.</div>`;
         }
     }
 

@@ -14,17 +14,18 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const filtro = rec.getValue('custpage_filtro') || '';
             recargarVentana(rec, filtro, pageNum);
         };
-        
-        window.cerrarPopup = function() {
-            window.close();
-        };
+    }
+
+    // La función se declara fuera del pageInit para que el botón de NetSuite la encuentre
+    function cerrarPopup() {
+        window.close();
     }
 
     function fieldChanged(context) {
         const { currentRecord: rec, fieldId } = context;
         if (fieldId === 'custpage_filtro') {
             const filtro = rec.getValue('custpage_filtro') || '';
-            recargarVentana(rec, filtro, 0); 
+            recargarVentana(rec, filtro, 0);
         }
     }
 
@@ -46,7 +47,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         qs.set('page', page);
         qs.set('mode', mode);
 
-        window.onbeforeunload = null; 
+        window.onbeforeunload = null;
         window.location.href = `${window.location.href.split('?')[0]}?${qs.toString()}`;
     }
 
@@ -60,27 +61,30 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const item = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_item', line: i });
             const activoVal = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_activo', line: i });
             const porcentaje = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_porcentaje', line: i });
-            const descripcion = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_descripcion', line: i });
+            
+            // Forzamos la lectura de la descripción
+            let descripcion = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_descripcion', line: i });
 
-            // Captura líneas que estén marcadas o que ya tengan ID (para poder actualizarlas)
             if (activoVal === 'T' || activoVal === true || id) {
                 cambios.push({
                     id: id || null,
                     item: item,
                     activo: activoVal === 'T' || activoVal === true,
                     porcentaje: parseFloat(porcentaje) || 0,
-                    descripcion: descripcion || ''
+                    // Aseguramos que sea un string válido para el JSON
+                    descripcion: (descripcion !== null && descripcion !== undefined) ? String(descripcion) : ''
                 });
             }
         }
 
         rec.setValue({ fieldId: 'custpage_payload', value: JSON.stringify(cambios) });
-        return true; 
+        return true;
     }
 
     return {
         pageInit: pageInit,
         fieldChanged: fieldChanged,
-        saveRecord: saveRecord
+        saveRecord: saveRecord,
+        cerrarPopup: cerrarPopup 
     };
 });

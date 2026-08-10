@@ -26,7 +26,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const mode = params.mode || 'view';
         const isEdit = (mode === 'edit');
 
-        const form = serverWidget.createForm({ title: 'Condiciones Comerciales por Proveedor' });
+        const form = serverWidget.createForm({ title: 'Condiciones Comerciales' });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaA.js';
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' })
@@ -53,7 +53,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         }
         if (marcaId) marcaField.defaultValue = marcaId;
 
-        form.addButton({ id: 'custpage_btn_buscar', label: 'Buscar / Refrescar', functionName: 'buscarCondiciones' });
+        form.addButton({ id: 'custpage_btn_buscar', label: 'Buscar', functionName: 'buscarCondiciones' });
         
         if (proveedorId && marcaId) {
             if (isEdit) {
@@ -83,15 +83,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 sublist.setSublistValue({ id: 'custpage_col_tipo_id', line: i, value: cond.tipoId });
                 sublist.setSublistValue({ id: 'custpage_col_tabla', line: i, value: cond.tabla });
                 
-                const colorRebate = isEdit ? '#607799' : '#6c757d';
-                const colorPP = isEdit ? '#607799' : '#6c757d';
-                const txtRebate = isEdit ? 'EDITAR ARTÍCULOS' : 'VER ARTÍCULOS';
-                const txtPP = isEdit ? 'ASIGNAR %' : 'VER %';
+                const txtRebate = isEdit ? 'Editar artículos' : 'Ver artículos';
+                const txtPP = isEdit ? 'Asignar %' : 'Ver %';
 
                 if (cond.tabla === 'CC') {
-                    sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cond.id}', '${cond.tipoId}', '${mode}')" style="display:inline-block;background:${colorRebate};color:#fff;padding:5px 15px;border-radius:4px;text-decoration:none;font-weight:bold;font-size:12px;">${txtRebate}</a>` });
+                    sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cond.id}', '${cond.tipoId}', '${mode}')" class="dottedlink">${txtRebate}</a>` });
                 } else if (cond.tabla === 'PP') {
-                    sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionProntoPago('${cond.id}', '${mode}')" style="display:inline-block;background:${colorPP};color:#fff;padding:5px 15px;border-radius:4px;text-decoration:none;font-weight:bold;font-size:12px;">${txtPP}</a>` });
+                    sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionProntoPago('${cond.id}', '${mode}')" class="dottedlink">${txtPP}</a>` });
                 }
             });
         }
