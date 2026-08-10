@@ -14,17 +14,18 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const filtro = rec.getValue('custpage_filtro') || '';
             recargarVentana(rec, filtro, pageNum);
         };
-        
-        window.cerrarPopup = function() {
-            window.close();
-        };
+    }
+
+    // La función se declara fuera del pageInit para que el botón de NetSuite la encuentre
+    function cerrarPopup() {
+        window.close();
     }
 
     function fieldChanged(context) {
         const { currentRecord: rec, fieldId } = context;
         if (fieldId === 'custpage_filtro') {
             const filtro = rec.getValue('custpage_filtro') || '';
-            recargarVentana(rec, filtro, 0); 
+            recargarVentana(rec, filtro, 0);
         }
     }
 
@@ -46,7 +47,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         qs.set('page', page);
         qs.set('mode', mode);
 
-        window.onbeforeunload = null; 
+        window.onbeforeunload = null;
         window.location.href = `${window.location.href.split('?')[0]}?${qs.toString()}`;
     }
 
@@ -75,12 +76,13 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         }
 
         rec.setValue({ fieldId: 'custpage_payload', value: JSON.stringify(cambios) });
-        return true; 
+        return true;
     }
 
     return {
         pageInit: pageInit,
         fieldChanged: fieldChanged,
-        saveRecord: saveRecord
+        saveRecord: saveRecord,
+        cerrarPopup: cerrarPopup // Exportada correctamente para que el botón funcione
     };
 });

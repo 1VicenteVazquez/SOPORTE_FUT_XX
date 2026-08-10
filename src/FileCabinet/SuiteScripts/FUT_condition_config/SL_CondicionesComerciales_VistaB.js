@@ -7,7 +7,6 @@
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
-    // 1. CAMBIO: Paginación a 15 registros
     const PAGE_SIZE = 15;
 
     const onRequest = (context) => {
@@ -25,10 +24,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         // Se agrega hideNavBar: true para ocultar el menú de NetSuite
         const form = serverWidget.createForm({ title: titulo, hideNavBar: true });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
-
-        // Script inyectado para el botón cerrar
-        form.addField({ id: 'custpage_close_script', type: serverWidget.FieldType.INLINEHTML, label: ' ' })
-            .defaultValue = "<script>function cerrarPopup() { window.close(); }</script>";
 
         form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.padreId;
         form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
@@ -133,7 +128,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             // Obtenemos los datos de la página actual
             let currentPageData = pagedData.fetch({ index: pageIndex }).data;
 
-            // CAMBIO: Ordenar los datos para que los artículos que ya existen en "registrosHijo" salgan al inicio de la tabla
+            // Ordenar los datos para que los artículos que ya existen en "registrosHijo" salgan al inicio de la tabla
             currentPageData.sort((a, b) => {
                 const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
                 const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
