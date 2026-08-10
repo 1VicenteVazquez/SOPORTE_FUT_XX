@@ -7,7 +7,8 @@
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
-    const PAGE_SIZE = 50; 
+    // 1. CAMBIO: Paginación a 15 registros
+    const PAGE_SIZE = 15;
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -80,11 +81,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             const valorActivo = res.getValue('custrecord_fut_activo');
             
             if (idArticuloStr) {
-                registrosHijo[idArticuloStr] = { 
-                    id: String(res.id), 
-                    activo: (valorActivo === 'T' || valorActivo === true), 
-                    pct: res.getValue('custrecord_fut_porcentaje'), 
-                    desc: res.getValue('custrecord_fut_descripcion') 
+                registrosHijo[idArticuloStr] = {
+                    id: String(res.id),
+                    activo: (valorActivo === 'T' || valorActivo === true),
+                    pct: res.getValue('custrecord_fut_porcentaje'),
+                    desc: res.getValue('custrecord_fut_descripcion')
                 };
             }
             return true;
@@ -98,35 +99,50 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
 
         const pagedData = search.create({ type: search.Type.ITEM, filters: filtrosItem, columns: ['internalid', 'itemid'] }).runPaged({ pageSize: PAGE_SIZE });
 
-        // DISEÑO DE PAGINACIÓN 
+        // DISEÑO DE PAGINACIÓN ESTILO NETSUITE (SIN CUADROS)
         const totalPages = pagedData.pageRanges.length;
         if (totalPages > 0) {
-            let htmlBtns = `<div style="margin: 10px 0; font-family: sans-serif; display: flex; align-items: center; gap: 5px; font-size: 13px;">`;
-            htmlBtns += `<span style="margin-right: 15px; font-weight: bold; color: #555;">Página ${pageIndex + 1} de ${totalPages}</span>`;
+            let htmlBtns = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; font-size: 13px; color: #333;">`;
+            htmlBtns += `<span style="margin-right: 15px;">Página ${pageIndex + 1} de ${totalPages}</span>`;
+            
             if (pageIndex > 0) {
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(0); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Primera">&laquo;</a>`;
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Anterior">&lsaquo; Anterior</a>`;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(0); return false;" style="color: #255599; text-decoration: none; margin-right: 5px;" title="Primera">&laquo; Primera</a> | `;
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="color: #255599; text-decoration: none; margin-right: 5px;" title="Anterior">&lsaquo; Anterior</a> | `;
             }
+            
             let startPage = Math.max(0, pageIndex - 2);
             let endPage = Math.min(totalPages - 1, pageIndex + 2);
+            
             for (let i = startPage; i <= endPage; i++) {
                 let isCurrent = (i === pageIndex);
-                let bg = isCurrent ? '#005587' : '#fff';
-                let txt = isCurrent ? '#fff' : '#005587';
-                let weight = isCurrent ? 'bold' : 'normal';
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${i}); return false;" style="padding: 4px 10px; background: ${bg}; color: ${txt}; font-weight: ${weight}; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;">${i+1}</a>`;
+                let style = isCurrent ? 'font-weight: bold; color: #000; text-decoration: none;' : 'color: #255599; text-decoration: none;';
+                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${i}); return false;" style="${style} margin: 0 5px;">${i+1}</a>`;
+                if (i < endPage) htmlBtns += ` | `;
             }
+            
             if (pageIndex < totalPages - 1) {
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Siguiente">Siguiente &rsaquo;</a>`;
-                htmlBtns += `<a href="#" onclick="window.cambiarPagina(${totalPages - 1}); return false;" style="padding: 4px 8px; background: #fff; color: #005587; text-decoration: none; border: 1px solid #ccc; border-radius: 3px;" title="Última">&raquo;</a>`;
+                htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="color: #255599; text-decoration: none; margin-left: 5px;" title="Siguiente">Siguiente &rsaquo;</a>`;
+                htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${totalPages - 1}); return false;" style="color: #255599; text-decoration: none; margin-left: 5px;" title="Última">Última &raquo;</a>`;
             }
             htmlBtns += `</div>`;
             htmlPaginacion.defaultValue = htmlBtns;
 
             // 3. RENDERIZADO DE LAS FILAS
             let line = 0;
-            pagedData.fetch({ index: pageIndex }).data.forEach(res => {
-                const itemIdStr = String(res.id); 
+            
+            // Obtenemos los datos de la página actual
+            let currentPageData = pagedData.fetch({ index: pageIndex }).data;
+
+            // CAMBIO: Ordenar los datos para que los artículos que ya existen en "registrosHijo" salgan al inicio de la tabla
+            currentPageData.sort((a, b) => {
+                const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
+                const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
+                return tieneB - tieneA; // Ordena de mayor a menor (1 va antes que 0)
+            });
+
+            // Iteramos sobre los datos ya ordenados
+            currentPageData.forEach(res => {
+                const itemIdStr = String(res.id);
                 const dataHijo = registrosHijo[itemIdStr];
                 
                 sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
@@ -145,7 +161,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                 line++;
             });
         } else {
-            htmlPaginacion.defaultValue = `<div style="margin: 10px 0; font-family: sans-serif; color: #888;">No se encontraron artículos.</div>`;
+            htmlPaginacion.defaultValue = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; color: #888;">No se encontraron artículos.</div>`;
         }
     }
 
