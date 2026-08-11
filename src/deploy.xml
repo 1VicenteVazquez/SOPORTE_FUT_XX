@@ -7,9 +7,7 @@
         <path>~/AccountConfiguration/*</path>
     </configuration>
     <files>
-
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/UE_ItemReceipt_CostoREFMXP.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaB.js</path>
+        <!-- <path>~/FileCabinet/SuiteScripts/FUT_condition_config/UE_ItemReceipt_CostoREFMXP.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaA.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/MR_CondicionesComerciales_Actualizar.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaB.js</path>
