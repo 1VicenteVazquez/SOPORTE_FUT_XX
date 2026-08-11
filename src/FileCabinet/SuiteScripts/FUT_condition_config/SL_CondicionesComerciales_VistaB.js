@@ -17,25 +17,25 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
     function renderForm(context) {
         const params = context.request.parameters;
         
-        // Control de modo lectura/edición
         const isEdit = (params.mode === 'edit');
         const titulo = isEdit ? 'Asignación de Condiciones (Edición)' : 'Asignación de Condiciones (Consulta)';
         
-        // Se agrega hideNavBar: true para ocultar el menú de NetSuite
         const form = serverWidget.createForm({ title: titulo, hideNavBar: true });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
 
+        // Variables Ocultas
         form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.padreId;
         form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
         form.addField({ id: 'custpage_marca_id', type: serverWidget.FieldType.TEXT, label: 'Marca' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.marca;
         form.addField({ id: 'custpage_proveedor_id', type: serverWidget.FieldType.TEXT, label: 'Prov' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.proveedor;
         form.addField({ id: 'custpage_payload', type: serverWidget.FieldType.LONGTEXT, label: 'Payload' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
+        // --- SECCIÓN DE FILTROS ---
         form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre' }).defaultValue = params.filtro || '';
+        form.addField({ id: 'custpage_filtro_rin', type: serverWidget.FieldType.TEXT, label: 'Buscar por Tamaño de Rin' }).defaultValue = params.filtroRin || '';
         
         const htmlPaginacion = form.addField({ id: 'custpage_html_paginacion', type: serverWidget.FieldType.INLINEHTML, label: ' ' });
 
-        // Botones condicionados al modo
         if (isEdit) {
             form.addSubmitButton({ label: 'Guardar Cambios' });
             form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'cerrarPopup' });
@@ -45,40 +45,39 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
 
         const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
         
-        // El ID oculto lo mantenemos igual, no afecta la vista
         sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'Reg ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
-        // Bloqueo de campos si está en modo View
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         
-        // 1. Activo
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
-        
-        // 2. Artículo
         sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-        
-        // 3. Tamaño de Rin (Campo informativo/lectura)
         sublist.addField({ id: 'custpage_col_rin', type: serverWidget.FieldType.TEXT, label: 'Tamaño de Rin' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-
-        // 4. Descripción Porcentaje
         sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción Porcentaje' }).updateDisplayType({ displayType: displayModo });
 
-        // 5. Porcentaje de Descuento
-        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: 'Porcentaje de Descuento' }).updateDisplayType({ displayType: displayModo });
+        // 1. CAMBIO: SELECT con puntos decimales hasta el 10%
+        const fldPorcentaje = sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.SELECT, label: 'Porcentaje de Descuento' });
+        fldPorcentaje.updateDisplayType({ displayType: displayModo });
+        fldPorcentaje.addSelectOption({ value: '', text: '- N/A -' });
+        
+        // Bucle para generar del 0.1 al 10.0
+        for (let i = 1; i <= 100; i++) {
+            let val = i / 10;
+            // value='1.5', text='1.5%'
+            fldPorcentaje.addSelectOption({ value: val.toString(), text: val.toFixed(1) + '%' });
+        }
 
         if (params.marca && params.padreId) {
-            cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', parseInt(params.page) || 0, htmlPaginacion);
+            cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', params.filtroRin || '', parseInt(params.page) || 0, htmlPaginacion);
         }
 
         context.response.writePage(form);
     }
 
-    function cargarArticulos(sublist, marcaId, padreId, filtroTexto, pageIndex, htmlPaginacion) {
+    function cargarArticulos(sublist, marcaId, padreId, filtroTexto, filtroRinTexto, pageIndex, htmlPaginacion) {
         const registrosHijo = {};
         
         log.debug('VISTA B - Buscando Registros', `Padre ID: ${padreId}`);
 
-        // 1. CARGA DE REGISTROS GUARDADOS (CON CASTING ESTRICTO)
         search.create({
             type: 'customrecord_fut_condicion_detalle',
             filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
@@ -98,11 +97,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             return true;
         });
 
-        log.debug('VISTA B - Artículos Encontrados en BD', Object.keys(registrosHijo).length + ' registros extraídos.');
-
-        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS (Agregamos 'custitem_diametro_rin' en columns)
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
+        
+        // 2. CORRECCIÓN: Filtro con Formulatext para evitar cruces con IDs Internos
+        if (filtroRinTexto) {
+            filtrosItem.push('AND', ['formulatext: {custitem_diametro_rin}', 'contains', filtroRinTexto]); 
+        }
 
         const pagedData = search.create({ 
             type: search.Type.ITEM, 
@@ -110,7 +111,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             columns: ['internalid', 'itemid', 'custitem_diametro_rin'] 
         }).runPaged({ pageSize: PAGE_SIZE });
 
-        // DISEÑO DE PAGINACIÓN ESTILO NETSUITE (SIN CUADROS)
         const totalPages = pagedData.pageRanges.length;
         if (totalPages > 0) {
             let htmlBtns = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; font-size: 13px; color: #333;">`;
@@ -138,20 +138,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             htmlBtns += `</div>`;
             htmlPaginacion.defaultValue = htmlBtns;
 
-            // 3. RENDERIZADO DE LAS FILAS
             let line = 0;
-            
-            // Obtenemos los datos de la página actual
             let currentPageData = pagedData.fetch({ index: pageIndex }).data;
 
-            // Ordenar los datos para que los artículos que ya existen en "registrosHijo" salgan al inicio de la tabla
             currentPageData.sort((a, b) => {
                 const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
                 const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
                 return tieneB - tieneA;
             });
 
-            // Iteramos sobre los datos ya ordenados
             currentPageData.forEach(res => {
                 const itemIdStr = String(res.id);
                 const dataHijo = registrosHijo[itemIdStr];
@@ -169,19 +164,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
                     sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
                     
-                    // LÓGICA CORREGIDA: Si existe el registro, respetamos su descripción (incluso si la dejó en blanco intencionalmente)
                     let descFinal = (dataHijo.desc !== null && dataHijo.desc !== undefined) ? dataHijo.desc : txtPorDefecto;
-                    
-                    // Solo inyectamos el valor si no está completamente vacío (evita error de NetSuite)
                     if (descFinal !== '') {
                         sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
                     }
                     
+                    // 3. CAMBIO: Utilizamos parseFloat para empatar valores como "1.5" al SELECT sin importar cómo vengan de la BD
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
-                        sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: dataHijo.pct });
+                        let valorParaSelect = parseFloat(dataHijo.pct).toString();
+                        if (!isNaN(valorParaSelect)) {
+                            sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: valorParaSelect });
+                        }
                     }
                 } else {
-                    // Si es nuevo, ponemos el default
                     sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: txtPorDefecto });
                 }
                 line++;

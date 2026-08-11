@@ -11,31 +11,33 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
     function pageInit(context) {
         window.cambiarPagina = function(pageNum) {
             const rec = context.currentRecord;
-            const filtro = rec.getValue('custpage_filtro') || '';
-            recargarVentana(rec, filtro, pageNum);
+            recargarVentana(rec, pageNum);
         };
     }
 
-    // La función se declara fuera del pageInit para que el botón de NetSuite la encuentre
     function cerrarPopup() {
         window.close();
     }
 
     function fieldChanged(context) {
         const { currentRecord: rec, fieldId } = context;
-        if (fieldId === 'custpage_filtro') {
-            const filtro = rec.getValue('custpage_filtro') || '';
-            recargarVentana(rec, filtro, 0);
+        // Escuchar cambios en CUALQUIERA de los dos filtros
+        if (fieldId === 'custpage_filtro' || fieldId === 'custpage_filtro_rin') {
+            recargarVentana(rec, 0);
         }
     }
 
-    function recargarVentana(rec, filtro, page) {
+    // Función refactorizada para leer los filtros directamente del registro
+    function recargarVentana(rec, page) {
         const padreId = rec.getValue('custpage_padre_id');
         const tipoId = rec.getValue('custpage_tipo_id');
         const marcaId = rec.getValue('custpage_marca_id');
         const proveedorId = rec.getValue('custpage_proveedor_id');
         
-        // Conservar el modo (Edit/View) actual de la URL
+        // Nuevos valores de filtros
+        const filtro = rec.getValue('custpage_filtro') || '';
+        const filtroRin = rec.getValue('custpage_filtro_rin') || '';
+        
         const qs = new URLSearchParams(window.location.search);
         const mode = qs.get('mode') || 'view';
 
@@ -44,6 +46,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         qs.set('marca', marcaId);
         qs.set('proveedor', proveedorId);
         qs.set('filtro', filtro);
+        qs.set('filtroRin', filtroRin); // Se envía a la URL
         qs.set('page', page);
         qs.set('mode', mode);
 
@@ -62,7 +65,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const activoVal = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_activo', line: i });
             const porcentaje = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_porcentaje', line: i });
             
-            // Forzamos la lectura de la descripción
             let descripcion = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_descripcion', line: i });
 
             if (activoVal === 'T' || activoVal === true || id) {
@@ -70,8 +72,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
                     id: id || null,
                     item: item,
                     activo: activoVal === 'T' || activoVal === true,
-                    porcentaje: parseFloat(porcentaje) || 0,
-                    // Aseguramos que sea un string válido para el JSON
+                    porcentaje: parseFloat(porcentaje) || 0, // Al ser un SELECT, parseamos su 'value' interno a float
                     descripcion: (descripcion !== null && descripcion !== undefined) ? String(descripcion) : ''
                 });
             }
