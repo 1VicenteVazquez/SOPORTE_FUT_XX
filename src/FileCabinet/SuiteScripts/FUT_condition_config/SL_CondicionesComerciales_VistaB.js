@@ -44,15 +44,27 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         }
 
         const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
+        
+        // El ID oculto lo mantenemos igual, no afecta la vista
         sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'Reg ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         
         // Bloqueo de campos si está en modo View
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Aplica' }).updateDisplayType({ displayType: displayModo });
-        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: '% Condición' }).updateDisplayType({ displayType: displayModo });
-        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Observaciones / Rines' }).updateDisplayType({ displayType: displayModo });
+        // 1. Activo
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
+        
+        // 2. Artículo
+        sublist.addField({ id: 'custpage_col_item', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        
+        // 3. Tamaño de Rin (Campo informativo/lectura)
+        sublist.addField({ id: 'custpage_col_rin', type: serverWidget.FieldType.TEXT, label: 'Tamaño de Rin' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // 4. Descripción Porcentaje
+        sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción Porcentaje' }).updateDisplayType({ displayType: displayModo });
+
+        // 5. Porcentaje de Descuento
+        sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.PERCENT, label: 'Porcentaje de Descuento' }).updateDisplayType({ displayType: displayModo });
 
         if (params.marca && params.padreId) {
             cargarArticulos(sublist, params.marca, params.padreId, params.filtro || '', parseInt(params.page) || 0, htmlPaginacion);
@@ -88,11 +100,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
 
         log.debug('VISTA B - Artículos Encontrados en BD', Object.keys(registrosHijo).length + ' registros extraídos.');
 
-        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS
+        // 2. BÚSQUEDA DEL CATÁLOGO DE ARTÍCULOS (Agregamos 'custitem_diametro_rin' en columns)
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
 
-        const pagedData = search.create({ type: search.Type.ITEM, filters: filtrosItem, columns: ['internalid', 'itemid'] }).runPaged({ pageSize: PAGE_SIZE });
+        const pagedData = search.create({ 
+            type: search.Type.ITEM, 
+            filters: filtrosItem, 
+            columns: ['internalid', 'itemid', 'custitem_diametro_rin'] 
+        }).runPaged({ pageSize: PAGE_SIZE });
 
         // DISEÑO DE PAGINACIÓN ESTILO NETSUITE (SIN CUADROS)
         const totalPages = pagedData.pageRanges.length;
@@ -132,7 +148,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
             currentPageData.sort((a, b) => {
                 const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
                 const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
-                return tieneB - tieneA; // Ordena de mayor a menor (1 va antes que 0)
+                return tieneB - tieneA;
             });
 
             // Iteramos sobre los datos ya ordenados
@@ -140,18 +156,33 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                 const itemIdStr = String(res.id);
                 const dataHijo = registrosHijo[itemIdStr];
                 
+                const tamanoRin = res.getText('custitem_diametro_rin') || res.getValue('custitem_diametro_rin') || '';
+                const txtPorDefecto = "REBATE"; 
+                
                 sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
+                
+                if (tamanoRin) {
+                    sublist.setSublistValue({ id: 'custpage_col_rin', line: line, value: tamanoRin });
+                }
                 
                 if (dataHijo) {
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
                     sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
                     
+                    // LÓGICA CORREGIDA: Si existe el registro, respetamos su descripción (incluso si la dejó en blanco intencionalmente)
+                    let descFinal = (dataHijo.desc !== null && dataHijo.desc !== undefined) ? dataHijo.desc : txtPorDefecto;
+                    
+                    // Solo inyectamos el valor si no está completamente vacío (evita error de NetSuite)
+                    if (descFinal !== '') {
+                        sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
+                    }
+                    
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: dataHijo.pct });
                     }
-                    if (dataHijo.desc) {
-                        sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: dataHijo.desc });
-                    }
+                } else {
+                    // Si es nuevo, ponemos el default
+                    sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: txtPorDefecto });
                 }
                 line++;
             });

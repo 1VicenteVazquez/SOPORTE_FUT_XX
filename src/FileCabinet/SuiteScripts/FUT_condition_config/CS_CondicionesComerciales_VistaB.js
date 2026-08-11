@@ -61,16 +61,18 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const item = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_item', line: i });
             const activoVal = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_activo', line: i });
             const porcentaje = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_porcentaje', line: i });
-            const descripcion = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_descripcion', line: i });
+            
+            // Forzamos la lectura de la descripción
+            let descripcion = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_descripcion', line: i });
 
-            // Captura líneas que estén marcadas o que ya tengan ID (para poder actualizarlas)
             if (activoVal === 'T' || activoVal === true || id) {
                 cambios.push({
                     id: id || null,
                     item: item,
                     activo: activoVal === 'T' || activoVal === true,
                     porcentaje: parseFloat(porcentaje) || 0,
-                    descripcion: descripcion || ''
+                    // Aseguramos que sea un string válido para el JSON
+                    descripcion: (descripcion !== null && descripcion !== undefined) ? String(descripcion) : ''
                 });
             }
         }
@@ -83,6 +85,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         pageInit: pageInit,
         fieldChanged: fieldChanged,
         saveRecord: saveRecord,
-        cerrarPopup: cerrarPopup // Exportada correctamente para que el botón funcione
+        cerrarPopup: cerrarPopup 
     };
 });
