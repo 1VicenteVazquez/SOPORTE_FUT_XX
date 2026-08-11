@@ -26,7 +26,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const mode = params.mode || 'view';
         const isEdit = (mode === 'edit');
 
-        const form = serverWidget.createForm({ title: 'Condiciones Comerciales por Proveedor' });
+        const form = serverWidget.createForm({ title: 'Condiciones Comerciales' });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaA.js';
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' })
@@ -53,7 +53,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         }
         if (marcaId) marcaField.defaultValue = marcaId;
 
-        form.addButton({ id: 'custpage_btn_buscar', label: 'Buscar / Refrescar', functionName: 'buscarCondiciones' });
+        form.addButton({ id: 'custpage_btn_buscar', label: 'Buscar', functionName: 'buscarCondiciones' });
         
         if (proveedorId && marcaId) {
             if (isEdit) {

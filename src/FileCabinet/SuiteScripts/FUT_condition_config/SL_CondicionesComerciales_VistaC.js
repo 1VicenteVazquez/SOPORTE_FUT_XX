@@ -21,7 +21,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
 
         // ¡AQUÍ TAMBIÉN! hideNavBar: true
         const form = serverWidget.createForm({ 
-            title: isEdit ? 'Configurar Pronto Pago' : 'Consultar Pronto Pago',
+            title: isEdit ? 'Configurar Pronto Pago' : 'Pronto Pago',
             hideNavBar: true
         });
 
