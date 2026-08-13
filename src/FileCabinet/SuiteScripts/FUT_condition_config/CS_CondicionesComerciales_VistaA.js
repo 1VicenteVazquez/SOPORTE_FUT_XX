@@ -9,7 +9,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
     function pageInit(context) {
         window.abrirEdicionTipo = abrirEdicionTipo;
         window.abrirEdicionProntoPago = abrirEdicionProntoPago;
-        window.abrirEdicionAlcanceMeta = abrirEdicionAlcanceMeta; // NUEVO: Exponemos la función
     }
 
     function cancelarEdicion() {
@@ -71,19 +70,6 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             params: { proveedor: prov, marca: marca, registroId: registroId, mode: modo, hideNavBar: 'T' }
         });
         window.open(popupUrl, 'PopupProntoPago', 'width=500,height=300,resizable=yes,scrollbars=no');
-    }
-
-    function abrirEdicionAlcanceMeta(registroId, modo) {
-        const rec = currentRecord.get();
-        const prov = rec.getValue('custpage_proveedor');
-        const marca = rec.getValue('custpage_marca');
-
-        const popupUrl = url.resolveScript({
-            scriptId: 'customscript_fut_sl_condcom_vista_d', 
-            deploymentId: 'customdeploy_fut_sl_condcom_vista_d', 
-            params: { proveedor: prov, marca: marca, registroId: registroId, mode: modo, hideNavBar: 'T' }
-        });
-        window.open(popupUrl, 'PopupAlcanceMeta', 'width=500,height=300,resizable=yes,scrollbars=no');
     }
 
     function fieldChanged(context) {

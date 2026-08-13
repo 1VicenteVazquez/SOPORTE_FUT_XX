@@ -15,7 +15,6 @@
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaB.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaA.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaC.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaD.js</path>
 
     </files>
 </deploy>   

@@ -7,7 +7,7 @@
  */
 define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, search, task, log) => {
 
-    const PAGE_SIZE = 15;
+    const PAGE_SIZE = 25; // CAMBIADO A 25 REGISTROS POR PÁGINA
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -30,18 +30,35 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         form.addField({ id: 'custpage_proveedor_id', type: serverWidget.FieldType.TEXT, label: 'Prov' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.proveedor;
         form.addField({ id: 'custpage_payload', type: serverWidget.FieldType.LONGTEXT, label: 'Payload' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
-        // --- SECCIÓN DE FILTROS ---
-        form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre' }).defaultValue = params.filtro || '';
-        form.addField({ id: 'custpage_filtro_rin', type: serverWidget.FieldType.TEXT, label: 'Buscar por Tamaño de Rin' }).defaultValue = params.filtroRin || '';
+        // --- SECCIÓN DE FILTROS AGRUPADA ---
+        form.addFieldGroup({ id: 'custpage_fg_filtros', label: 'Filtros de Búsqueda de Artículos' });
         
-        const htmlPaginacion = form.addField({ id: 'custpage_html_paginacion', type: serverWidget.FieldType.INLINEHTML, label: ' ' });
+        form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre', container: 'custpage_fg_filtros' }).defaultValue = params.filtro || '';
+        form.addField({ id: 'custpage_filtro_rin', type: serverWidget.FieldType.TEXT, label: 'Buscar por Tamaño de Rin Específico', container: 'custpage_fg_filtros' }).defaultValue = params.filtroRin || '';
 
+        // --- PANEL DE ASIGNACIÓN MASIVA (Solo visible en Edición) ---
         if (isEdit) {
+            form.addFieldGroup({ id: 'custpage_fg_masivo', label: 'Herramienta de Asignación Rápida por Rango (Aplica a los artículos en pantalla)' });
+            
+            form.addField({ id: 'custpage_mass_rin_min', type: serverWidget.FieldType.TEXT, label: 'Rin Mínimo', container: 'custpage_fg_masivo' });
+            form.addField({ id: 'custpage_mass_rin_max', type: serverWidget.FieldType.TEXT, label: 'Rin Máximo', container: 'custpage_fg_masivo' });
+            
+            const fldMassPct = form.addField({ id: 'custpage_mass_pct', type: serverWidget.FieldType.SELECT, label: 'Porcentaje a Asignar', container: 'custpage_fg_masivo' });
+            fldMassPct.addSelectOption({ value: '', text: '- Seleccione -' });
+            for (let i = 1; i <= 100; i++) {
+                let val = i / 10;
+                fldMassPct.addSelectOption({ value: val.toString(), text: val.toFixed(1) + '%' });
+            }
+
+            form.addButton({ id: 'custpage_btn_aplicar', label: 'Aplicar a la Lista', functionName: 'aplicarMasivo', container: 'custpage_fg_masivo' });
+            
             form.addSubmitButton({ label: 'Guardar Cambios' });
             form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'cerrarPopup' });
         } else {
             form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'cerrarPopup' });
         }
+
+        const htmlPaginacion = form.addField({ id: 'custpage_html_paginacion', type: serverWidget.FieldType.INLINEHTML, label: ' ' });
 
         const sublist = form.addSublist({ id: 'custpage_sublist', type: serverWidget.SublistType.LIST, label: 'Artículos' });
         
@@ -54,15 +71,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         sublist.addField({ id: 'custpage_col_rin', type: serverWidget.FieldType.TEXT, label: 'Tamaño de Rin' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción Porcentaje' }).updateDisplayType({ displayType: displayModo });
 
-        // 1. CAMBIO: SELECT con puntos decimales hasta el 10%
         const fldPorcentaje = sublist.addField({ id: 'custpage_col_porcentaje', type: serverWidget.FieldType.SELECT, label: 'Porcentaje de Descuento' });
         fldPorcentaje.updateDisplayType({ displayType: displayModo });
         fldPorcentaje.addSelectOption({ value: '', text: '- N/A -' });
         
-        // Bucle para generar del 0.1 al 10.0
         for (let i = 1; i <= 100; i++) {
             let val = i / 10;
-            // value='1.5', text='1.5%'
             fldPorcentaje.addSelectOption({ value: val.toString(), text: val.toFixed(1) + '%' });
         }
 
@@ -76,8 +90,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
     function cargarArticulos(sublist, marcaId, padreId, filtroTexto, filtroRinTexto, pageIndex, htmlPaginacion) {
         const registrosHijo = {};
         
-        log.debug('VISTA B - Buscando Registros', `Padre ID: ${padreId}`);
-
         search.create({
             type: 'customrecord_fut_condicion_detalle',
             filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
@@ -100,7 +112,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
         
-        // 2. CORRECCIÓN: Filtro con Formulatext para evitar cruces con IDs Internos
         if (filtroRinTexto) {
             filtrosItem.push('AND', ['formulatext: {custitem_diametro_rin}', 'contains', filtroRinTexto]); 
         }
@@ -169,7 +180,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
                         sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
                     }
                     
-                    // 3. CAMBIO: Utilizamos parseFloat para empatar valores como "1.5" al SELECT sin importar cómo vengan de la BD
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         let valorParaSelect = parseFloat(dataHijo.pct).toString();
                         if (!isNaN(valorParaSelect)) {
@@ -191,24 +201,48 @@ define(['N/ui/serverWidget', 'N/search', 'N/task', 'N/log'], (serverWidget, sear
         const payload = req.parameters.custpage_payload;
         
         if (payload && payload !== '[]') {
-            task.create({
-                taskType: task.TaskType.MAP_REDUCE,
-                scriptId: 'customscript_fut_mr_condcom_actualizar',
-                deploymentId: 'customdeploy_fut_mr_condcom_actualizar',
-                params: {
-                    'custscript_mr_cc_padre_id': req.parameters.custpage_padre_id,
-                    'custscript_mr_cc_tipo_id': req.parameters.custpage_tipo_id,
-                    'custscript_mr_cc_cambios': payload
-                }
-            }).submit();
-        }
+            try {
+                task.create({
+                    taskType: task.TaskType.MAP_REDUCE,
+                    scriptId: 'customscript_fut_mr_condcom_actualizar',
+                    deploymentId: 'customdeploy_fut_mr_condcom_actualizar',
+                    params: {
+                        'custscript_mr_cc_padre_id': req.parameters.custpage_padre_id,
+                        'custscript_mr_cc_tipo_id': req.parameters.custpage_tipo_id,
+                        'custscript_mr_cc_cambios': payload
+                    }
+                }).submit();
 
-        context.response.write(`
-            <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
-                <h2 style="color:#005587;">Procesando cambios en segundo plano...</h2>
-                <script>setTimeout(function(){ window.close(); }, 2000);</script>
-            </body></html>
-        `);
+                context.response.write(`
+                    <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+                        <h2 style="color:#005587;">Procesando cambios en segundo plano...</h2>
+                        <script>setTimeout(function(){ window.close(); }, 2000);</script>
+                    </body></html>
+                `);
+
+            } catch (e) {
+                if (e.name === 'MAP_REDUCE_ALREADY_RUNNING') {
+                    context.response.write(`
+                        <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+                            <h2 style="color:#d9534f;">¡Atención!</h2>
+                            <p style="font-size: 16px; color: #333;">El proceso de actualización en segundo plano ya se encuentra en ejecución.</p>
+                            <p style="font-size: 14px; color: #666;">Por favor, espera un momento a que termine la tarea actual antes de guardar nuevos cambios.</p>
+                            <br>
+                            <button onclick="window.history.back();" style="padding: 10px 20px; background: #005587; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Regresar</button>
+                        </body></html>
+                    `);
+                } else {
+                    throw e;
+                }
+            }
+        } else {
+            context.response.write(`
+                <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+                    <h3 style="color:#333;">No se detectaron cambios para guardar.</h3>
+                    <script>setTimeout(function(){ window.close(); }, 1500);</script>
+                </body></html>
+            `);
+        }
     }
 
     return { onRequest };

@@ -9,10 +9,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
     const CUSTOM_RECORD_PADRE = 'customrecord_fut_condiciones_comerciales';
     const CUSTOM_RECORD_PRONTO_PAGO = 'customrecord_fut_pronto_pago';
-    const CUSTOM_RECORD_ALCANCE_META = 'customrecord_fut_alcance_meta'; 
     
     const CAMPO_ACTIVO_PP = 'custrecord_fut_pp_activo'; 
-    const CAMPO_ACTIVO_AM = 'custrecord_fut_am_activo';
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -86,14 +84,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 
                 const txtRebate = isEdit ? 'Editar artículos' : 'Ver artículos';
                 const txtPP = isEdit ? 'Asignar porcentaje' : 'Ver porcentaje';
-                const txtAM = isEdit ? 'Asignar porcentaje' : 'Ver porcentaje'; // Texto para Vista D
 
                 if (cond.tabla === 'CC') {
                     sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cond.id}', '${cond.tipoId}', '${mode}')" class="dottedlink">${txtRebate}</a>` });
                 } else if (cond.tabla === 'PP') {
                     sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionProntoPago('${cond.id}', '${mode}')" class="dottedlink">${txtPP}</a>` });
-                } else if (cond.tabla === 'AM') { // NUEVO: Enlace a Vista D
-                    sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionAlcanceMeta('${cond.id}', '${mode}')" class="dottedlink">${txtAM}</a>` });
                 }
             });
         }
@@ -132,12 +127,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                         const recPP = record.load({ type: CUSTOM_RECORD_PRONTO_PAGO, id: idRegistro });
                         recPP.setValue({ fieldId: CAMPO_ACTIVO_PP, value: estaActivo });
                         recPP.save({ ignoreMandatoryFields: true });
-                    }
-                    else if (tabla === 'AM') {
-                        // NUEVO: Guardado de la Casilla de Verificación de Alcance Meta
-                        const recAM = record.load({ type: CUSTOM_RECORD_ALCANCE_META, id: idRegistro });
-                        recAM.setValue({ fieldId: CAMPO_ACTIVO_AM, value: estaActivo });
-                        recAM.save({ ignoreMandatoryFields: true });
                     }
                 } catch (e) { log.error(`Error guardando ${idRegistro} en tabla ${tabla}`, e.message); }
             }
@@ -183,25 +172,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 activo: estaActivo,
                 nombre: `PRONTO PAGO ${ppVal ? '(' + ppVal + '%)' : ''}`, 
                 tipoId: 'PP'
-            });
-            return true;
-        });
-
-        // 3. NUEVO: ALCANCE META
-        search.create({
-            type: CUSTOM_RECORD_ALCANCE_META,
-            filters: [['custrecord_fut_am_proveedor', 'anyof', proveedorId], 'AND', ['custrecord_fut_am_marca', 'anyof', marcaId]],
-            columns: ['internalid', 'custrecord_fut_am_porcentaje', CAMPO_ACTIVO_AM]
-        }).run().each(res => {
-            const amVal = res.getValue('custrecord_fut_am_porcentaje');
-            const estaActivo = (res.getValue(CAMPO_ACTIVO_AM) === 'T' || res.getValue(CAMPO_ACTIVO_AM) === true);
-
-            lista.push({
-                tabla: 'AM', 
-                id: res.id, 
-                activo: estaActivo,
-                nombre: `ALCANCE META ${amVal ? '(' + amVal + '%)' : ''}`, 
-                tipoId: 'AM'
             });
             return true;
         });
