@@ -14,7 +14,8 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             recargarVentana(rec, pageNum);
         };
         
-        window.aplicarMasivo = aplicarMasivo;
+        window.aplicarEscalasMasivas = aplicarEscalasMasivas;
+        window.cerrarPopup = cerrarPopup;
     }
 
     function cerrarPopup() {
@@ -53,41 +54,20 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         window.location.href = `${window.location.href.split('?')[0]}?${qs.toString()}`;
     }
 
-    function aplicarMasivo() {
+    function aplicarEscalasMasivas() {
         const rec = currentRecord.get();
+        rec.setValue({ fieldId: 'custpage_accion_masiva', value: 'T' });
         
-        const minStr = rec.getValue('custpage_mass_rin_min');
-        const maxStr = rec.getValue('custpage_mass_rin_max');
-        const pct = rec.getValue('custpage_mass_pct');
-
-        if (!minStr || !maxStr || !pct) {
-            alert('Por favor, ingresa el Rin Mínimo, Rin Máximo y selecciona un Porcentaje.');
-            return;
-        }
-
-        const min = parseFloat(minStr);
-        const max = parseFloat(maxStr);
-        const lineCount = rec.getLineCount({ sublistId: SUBLIST_ID });
-
-        let aplicados = 0;
-
-        for (let i = 0; i < lineCount; i++) {
-            const rinStr = rec.getSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_rin', line: i });
-            
-            if (rinStr) {
-                const rin = parseFloat(rinStr);
-                
-                if (!isNaN(rin) && rin >= min && rin <= max) {
-                    rec.selectLine({ sublistId: SUBLIST_ID, line: i });
-                    rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_activo', value: true, ignoreFieldChange: true });
-                    rec.setCurrentSublistValue({ sublistId: SUBLIST_ID, fieldId: 'custpage_col_porcentaje', value: pct, ignoreFieldChange: true });
-                    rec.commitLine({ sublistId: SUBLIST_ID });
-                    aplicados++;
-                }
+        try {
+            window.onbeforeunload = null;
+            if (typeof NLForm !== 'undefined' && NLForm.setSubmitButton) {
+                document.forms['main_form'].submit();
+            } else {
+                document.getElementById('submitter') ? document.getElementById('submitter').click() : document.forms[0].submit();
             }
+        } catch (e) {
+            document.forms[0].submit();
         }
-
-        alert(`Proceso terminado. Se actualizaron ${aplicados} artículos en esta página.\n\nRecuerda dar clic en "Guardar Cambios" cuando finalices.`);
     }
 
     function saveRecord(context) {
@@ -107,7 +87,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
                     id: id || null,
                     item: item,
                     activo: activoVal === 'T' || activoVal === true,
-                    porcentaje: parseFloat(porcentaje) || 0,
+                    porcentaje: porcentaje ? parseFloat(porcentaje) : null,
                     descripcion: (descripcion !== null && descripcion !== undefined) ? String(descripcion) : ''
                 });
             }
@@ -121,7 +101,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         pageInit: pageInit,
         fieldChanged: fieldChanged,
         saveRecord: saveRecord,
-        aplicarMasivo: aplicarMasivo,
+        aplicarEscalasMasivas: aplicarEscalasMasivas,
         cerrarPopup: cerrarPopup 
     };
 });
