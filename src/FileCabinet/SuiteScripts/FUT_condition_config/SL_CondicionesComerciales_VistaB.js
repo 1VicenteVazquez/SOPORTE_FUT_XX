@@ -31,7 +31,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             let msgFld = form.addField({ id: 'custpage_msg_exito', type: serverWidget.FieldType.INLINEHTML, label: 'Mensaje' });
             msgFld.defaultValue = `
                 <div style="background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-family: sans-serif; font-size: 14px; font-weight: bold;">
-                    ✅ ¡Escalas guardadas y proceso masivo lanzado en segundo plano con éxito! Ya puedes revisar los cambios reflejados en la Pestaña 1.
+                    ¡Segmentos guardados correctamente  y proceso masivo lanzado en segundo plano con éxito!
                 </div>
             `;
         }
@@ -56,9 +56,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
                 tab: 'custpage_tab_escalas' 
             });
 
-            form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'window.close();' });
+            form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'cerrarPopup' });
         } else {
-            form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'window.close();' });
+            form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'cerrarPopup' });
         }
 
         // PESTAÑA 1
