@@ -56,17 +56,13 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
 
     function aplicarEscalasMasivas() {
         const rec = currentRecord.get();
-        
-        // Marcamos la acción masiva
         rec.setValue({ fieldId: 'custpage_accion_masiva', value: 'T' });
         
-        // Usamos el mecanismo de envío nativo controlado de NetSuite
         try {
             window.onbeforeunload = null;
             if (typeof NLForm !== 'undefined' && NLForm.setSubmitButton) {
                 document.forms['main_form'].submit();
             } else {
-                // Forzar envío estándar seguro
                 document.getElementById('submitter') ? document.getElementById('submitter').click() : document.forms[0].submit();
             }
         } catch (e) {
@@ -91,7 +87,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
                     id: id || null,
                     item: item,
                     activo: activoVal === 'T' || activoVal === true,
-                    porcentaje: parseFloat(porcentaje) || 0,
+                    porcentaje: porcentaje ? parseFloat(porcentaje) : null,
                     descripcion: (descripcion !== null && descripcion !== undefined) ? String(descripcion) : ''
                 });
             }

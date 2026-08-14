@@ -5,11 +5,12 @@
  *
  * SL_CondicionesComerciales_VistaB.js
  */
-define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, search, record, log) => {
-
+define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/runtime', 'N/log'], (serverWidget, search, record, task, redirect, runtime, log) => {
+    
     const PAGE_SIZE = 25; 
     const CUSTOM_RECORD_ESCALAS = 'customrecord_fut_escalas_meta';
     const CUSTOM_RECORD_DETALLE = 'customrecord_fut_condicion_detalle';
+    const SCRIPT_ID_MR_ESCALAS = 'customscript_mr_aplicar_escalas'; 
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -26,25 +27,28 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
         const form = serverWidget.createForm({ title: titulo, hideNavBar: true });
         form.clientScriptModulePath = './CS_CondicionesComerciales_VistaB.js';
 
-        // --- CAMPOS OCULTOS ---
+        if (params.exito === 'T') {
+            let msgFld = form.addField({ id: 'custpage_msg_exito', type: serverWidget.FieldType.INLINEHTML, label: 'Mensaje' });
+            msgFld.defaultValue = `
+                <div style="background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-family: sans-serif; font-size: 14px; font-weight: bold;">
+                    ✅ ¡Escalas guardadas y proceso masivo lanzado en segundo plano con éxito! Ya puedes revisar los cambios reflejados en la Pestaña 1.
+                </div>
+            `;
+        }
+
         form.addField({ id: 'custpage_padre_id', type: serverWidget.FieldType.TEXT, label: 'Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = padreId;
         form.addField({ id: 'custpage_tipo_id', type: serverWidget.FieldType.TEXT, label: 'Tipo' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.tipo;
         form.addField({ id: 'custpage_marca_id', type: serverWidget.FieldType.TEXT, label: 'Marca' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.marca;
         form.addField({ id: 'custpage_proveedor_id', type: serverWidget.FieldType.TEXT, label: 'Prov' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = params.proveedor;
         form.addField({ id: 'custpage_payload', type: serverWidget.FieldType.LONGTEXT, label: 'Payload' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        
-        // Campo oculto para saber si se invocó la acción masiva desde el botón personalizado
         form.addField({ id: 'custpage_accion_masiva', type: serverWidget.FieldType.TEXT, label: 'Acción Masiva' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = 'F';
 
-        // --- CREACIÓN DE PESTAÑAS (TABS) ---
         form.addTab({ id: 'custpage_tab_articulos', label: '1. Vista General de Artículos (Excepciones)' });
         form.addTab({ id: 'custpage_tab_escalas', label: '2. Escalas por Segmento de Rin (Maestro)' });
 
-        // Botones organizados y limpios sin duplicarse
         if (isEdit) {
             form.addSubmitButton({ label: 'Guardar Cambios' });
             
-            // Botón personalizado limpio vinculado a la Pestaña 2
             form.addButton({ 
                 id: 'custpage_btn_aplicar_escalas', 
                 label: 'Aplicar Escalas a Artículos', 
@@ -52,14 +56,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
                 tab: 'custpage_tab_escalas' 
             });
 
-            form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'cerrarPopup' });
+            form.addButton({ id: 'btn_cerrar', label: 'Cancelar', functionName: 'window.close();' });
         } else {
-            form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'cerrarPopup' });
+            form.addButton({ id: 'btn_cerrar', label: 'Cerrar Ventana', functionName: 'window.close();' });
         }
 
-        // ==========================================
-        // PESTAÑA 1: ARTÍCULOS
-        // ==========================================
+        // PESTAÑA 1
         form.addFieldGroup({ id: 'custpage_fg_filtros', label: 'Filtros de Búsqueda de Artículos', tab: 'custpage_tab_articulos' });
         form.addField({ id: 'custpage_filtro', type: serverWidget.FieldType.TEXT, label: 'Buscar por Código / Nombre', container: 'custpage_fg_filtros', tab: 'custpage_tab_articulos' }).defaultValue = params.filtro || '';
         form.addField({ id: 'custpage_filtro_rin', type: serverWidget.FieldType.TEXT, label: 'Buscar por Tamaño de Rin Específico', container: 'custpage_fg_filtros', tab: 'custpage_tab_articulos' }).defaultValue = params.filtroRin || '';
@@ -87,9 +89,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
             cargarArticulos(sublist, params.marca, padreId, params.filtro || '', params.filtroRin || '', parseInt(params.page) || 0, htmlPaginacion);
         }
 
-        // ==========================================
-        // PESTAÑA 2: ESCALAS POR SEGMENTO
-        // ==========================================
+        // PESTAÑA 2
         const sublistEscalas = form.addSublist({ id: 'custpage_sublist_escalas', type: serverWidget.SublistType.INLINEEDITOR, label: 'Escalas por Segmento de Rin', tab: 'custpage_tab_escalas' });
         sublistEscalas.addField({ id: 'custpage_col_esc_id', type: serverWidget.FieldType.TEXT, label: 'ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
@@ -131,21 +131,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
                 let cuota = res.getValue('custrecord_fut_em_cuota');
                 let desc = res.getValue('custrecord_fut_em_descuento_pct');
 
-                if (min) sublistEscalas.setSublistValue({ id: 'custpage_col_esc_min', line: escLine, value: min });
-                if (max) sublistEscalas.setSublistValue({ id: 'custpage_col_esc_max', line: escLine, value: max });
+                if (min !== null && min !== '') sublistEscalas.setSublistValue({ id: 'custpage_col_esc_min', line: escLine, value: String(min) });
+                if (max !== null && max !== '') sublistEscalas.setSublistValue({ id: 'custpage_col_esc_max', line: escLine, value: String(max) });
                 
                 if (meta !== null && meta !== '') {
                     let numMetaPct = parseFloat(meta);
-                    let valMetaSel = numMetaPct <= 1 ? (numMetaPct * 100).toString() : numMetaPct.toString();
-                    sublistEscalas.setSublistValue({ id: 'custpage_col_esc_meta', line: escLine, value: valMetaSel });
+                    if (!isNaN(numMetaPct)) sublistEscalas.setSublistValue({ id: 'custpage_col_esc_meta', line: escLine, value: numMetaPct.toString() });
                 }
 
-                if (cuota) sublistEscalas.setSublistValue({ id: 'custpage_col_esc_cuota', line: escLine, value: cuota });
+                if (cuota !== null && cuota !== '') sublistEscalas.setSublistValue({ id: 'custpage_col_esc_cuota', line: escLine, value: String(cuota) });
                 
                 if (desc !== null && desc !== '') {
                     let numDescPct = parseFloat(desc);
-                    let valDescSel = numDescPct <= 1 ? (numDescPct * 100).toString() : numDescPct.toString();
-                    sublistEscalas.setSublistValue({ id: 'custpage_col_esc_desc', line: escLine, value: valDescSel });
+                    if (!isNaN(numDescPct)) sublistEscalas.setSublistValue({ id: 'custpage_col_esc_desc', line: escLine, value: numDescPct.toString() });
                 }
                 escLine++;
                 return true;
@@ -157,29 +155,25 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
 
     function cargarArticulos(sublist, marcaId, padreId, filtroTexto, filtroRinTexto, pageIndex, htmlPaginacion) {
         const registrosHijo = {};
-        
         search.create({
             type: CUSTOM_RECORD_DETALLE,
             filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
             columns: ['custrecord_fut_articulo', 'custrecord_fut_activo', 'custrecord_fut_porcentaje', 'custrecord_fut_descripcion']
         }).run().each(res => {
-            const idArticuloStr = String(res.getValue('custrecord_fut_articulo'));
-            const valorActivo = res.getValue('custrecord_fut_activo');
-            
-            if (idArticuloStr) {
-                registrosHijo[idArticuloStr] = {
-                    id: String(res.id),
-                    activo: (valorActivo === 'T' || valorActivo === true),
-                    pct: res.getValue('custrecord_fut_porcentaje'),
-                    desc: res.getValue('custrecord_fut_descripcion')
-                };
-            }
+            registrosHijo[res.getValue('custrecord_fut_articulo')] = {
+                id: res.id,
+                activo: res.getValue('custrecord_fut_activo') === 'T',
+                pct: parseFloat(res.getValue('custrecord_fut_porcentaje')),
+                desc: res.getValue('custrecord_fut_descripcion')
+            };
             return true;
         });
 
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
-        if (filtroRinTexto) filtrosItem.push('AND', ['formulatext: {custitem_diametro_rin}', 'contains', filtroRinTexto]); 
+        if (filtroRinTexto) {
+            filtrosItem.push('AND', ['formulatext: TO_CHAR({custitem_diametro_rin})', 'contains', filtroRinTexto]);
+        }
 
         const pagedData = search.create({ 
             type: search.Type.ITEM, 
@@ -230,7 +224,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
                 const txtPorDefecto = "REBATE"; 
                 
                 sublist.setSublistValue({ id: 'custpage_col_item', line: line, value: res.id });
-                if (tamanoRinRaw) sublist.setSublistValue({ id: 'custpage_col_rin', line: line, value: tamanoRinRaw });
+                if (tamanoRinRaw) sublist.setSublistValue({ id: 'custpage_col_rin', line: line, value: String(tamanoRinRaw) });
                 
                 if (dataHijo) {
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
@@ -241,8 +235,14 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
                     
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         let numPct = parseFloat(dataHijo.pct);
-                        let valSel = numPct <= 1 ? (numPct * 100).toString() : numPct.toString();
-                        sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: valSel });
+                        if (!isNaN(numPct)) {
+                            // Corrección visual para que el select reconozca el valor decimal crudo y lo pinte correctamente
+                            if (numPct > 0 && numPct < 1) {
+                                numPct = numPct * 100;
+                            }
+                            numPct = Math.round(numPct * 10) / 10; // limpia drift de flotantes (ej 3.7000000004 -> 3.7)
+                            sublist.setSublistValue({ id: 'custpage_col_porcentaje', line: line, value: numPct.toString() });
+                        }
                     }
                 } else {
                     sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: txtPorDefecto });
@@ -256,20 +256,101 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
 
     function procesarGuardado(context) {
         const req = context.request;
-        const padreId = req.parameters.custpage_padre_id;
-        const marcaId = req.parameters.custpage_marca_id;
-        const payloadArticulos = req.parameters.custpage_payload;
-        const accionMasiva = req.parameters.custpage_accion_masiva;
 
-        // 1. GUARDAR EXCEPCIONES MANUALES DE LA PESTAÑA 1
-        if (payloadArticulos && payloadArticulos !== '[]' && payloadArticulos !== null && payloadArticulos !== undefined) {
+        const safeText = (val) => {
+            if (val === null || val === undefined) return '';
+            try {
+                if (typeof val === 'object') return '';
+                let str = String(val).trim();
+                return (str === 'null' || str.includes('ScriptNullObjectAdapter')) ? '' : str;
+            } catch (e) {
+                return '';
+            }
+        };
+
+        const padreId = safeText(req.parameters.custpage_padre_id);
+        const marcaId = safeText(req.parameters.custpage_marca_id);
+        const tipoId = safeText(req.parameters.custpage_tipo_id);
+        const proveedorId = safeText(req.parameters.custpage_proveedor_id);
+        const payloadArticulos = safeText(req.parameters.custpage_payload);
+        const accionMasiva = safeText(req.parameters.custpage_accion_masiva);
+
+        // PASO 1: GUARDAR ESCALAS
+        const lineCountEsc = req.getLineCount({ group: 'custpage_sublist_escalas' }) || 0;
+        const idsExistentesEsc = [];
+        const escalasNuevasParaMR = [];
+
+        if (padreId !== '') {
+            search.create({
+                type: CUSTOM_RECORD_ESCALAS,
+                filters: [['custrecord_fut_em_padre', 'anyof', padreId]],
+                columns: ['internalid']
+            }).run().each(res => {
+                if (res && res.id) idsExistentesEsc.push(String(res.id));
+                return true;
+            });
+        }
+
+        const idsEnviadosEsc = [];
+        for (let i = 0; i < lineCountEsc; i++) {
+            try {
+                let idEsc = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_id', line: i }));
+                let rinMin = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_min', line: i }));
+                let rinMax = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_max', line: i }));
+                let metaSelect = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_meta', line: i }));
+                let cuota = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_cuota', line: i }));
+                let descSelect = safeText(req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_desc', line: i }));
+
+                if (rinMin === '' || rinMax === '' || descSelect === '') continue;
+
+                if (idEsc !== '') idsEnviadosEsc.push(idEsc);
+
+                let valRinMin = parseInt(rinMin, 10);
+                let valRinMax = parseInt(rinMax, 10);
+                let valMeta = metaSelect !== '' ? parseFloat(metaSelect) : null;
+                let valCuota = cuota !== '' ? parseInt(cuota, 10) : null;
+                let valDesc = parseFloat(descSelect);
+
+                let recEsc = idEsc !== '' ? record.load({ type: CUSTOM_RECORD_ESCALAS, id: idEsc }) : record.create({ type: CUSTOM_RECORD_ESCALAS });
+                
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_padre', value: padreId !== '' ? padreId : null });
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_rin_min', value: isNaN(valRinMin) ? null : valRinMin });
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_rin_max', value: isNaN(valRinMax) ? null : valRinMax });
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_meta_pct', value: valMeta });
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_cuota', value: valCuota });
+                recEsc.setValue({ fieldId: 'custrecord_fut_em_descuento_pct', value: isNaN(valDesc) ? null : valDesc });
+                
+                recEsc.save({ ignoreMandatoryFields: true });
+
+                if (!isNaN(valRinMin) && !isNaN(valRinMax) && !isNaN(valDesc)) {
+                    escalasNuevasParaMR.push({
+                        min: valRinMin,
+                        max: valRinMax,
+                        descuentoNum: valDesc
+                    });
+                }
+            } catch (e) {
+                log.error('Error guardando escala individual', e.message);
+            }
+        }
+
+        idsExistentesEsc.forEach(idViejo => {
+            if (!idsEnviadosEsc.includes(idViejo)) {
+                try { record.delete({ type: CUSTOM_RECORD_ESCALAS, id: idViejo }); } catch (e) {}
+            }
+        });
+
+        // PASO 2: GUARDAR EXCEPCIONES MANUALES
+        if (payloadArticulos !== '' && payloadArticulos !== '[]') {
             try {
                 const cambiosArt = JSON.parse(payloadArticulos);
                 cambiosArt.forEach(row => {
+                    let valPorcentaje = (row.porcentaje !== null && row.porcentaje !== undefined && !isNaN(row.porcentaje)) ? parseFloat(row.porcentaje) : null;
+                    
                     if (row && row.id) {
                         let recDet = record.load({ type: CUSTOM_RECORD_DETALLE, id: row.id });
                         recDet.setValue({ fieldId: 'custrecord_fut_activo', value: row.activo || false });
-                        recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: row.porcentaje ? row.porcentaje / 100 : '' });
+                        recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: valPorcentaje });
                         recDet.setValue({ fieldId: 'custrecord_fut_descripcion', value: row.descripcion || '' });
                         recDet.save({ ignoreMandatoryFields: true });
                     } else if (row && row.activo) {
@@ -277,143 +358,48 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/log'], (serverWidget, se
                         recDet.setValue({ fieldId: 'custrecord_fut_condicion_individual', value: padreId });
                         recDet.setValue({ fieldId: 'custrecord_fut_articulo', value: row.item });
                         recDet.setValue({ fieldId: 'custrecord_fut_activo', value: true });
-                        recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: row.porcentaje ? row.porcentaje / 100 : '' });
+                        recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: valPorcentaje });
                         recDet.setValue({ fieldId: 'custrecord_fut_descripcion', value: row.descripcion || 'REBATE' });
                         recDet.save({ ignoreMandatoryFields: true });
                     }
                 });
             } catch (e) {
-                log.error('Error guardando excepciones de artículos', e ? e.message : 'Error desconocido');
+                log.error('Error guardando excepciones de artículos', e.message);
             }
         }
 
-        // 2. GUARDAR Y ACTUALIZAR ESCALAS DE LA PESTAÑA 2
-        const lineCountEsc = req.getLineCount({ group: 'custpage_sublist_escalas' }) || 0;
-        const idsExistentesEsc = [];
-        const escalasNuevas = [];
-        
-        if (padreId) {
-            search.create({
-                type: CUSTOM_RECORD_ESCALAS,
-                filters: [['custrecord_fut_em_padre', 'anyof', padreId]],
-                columns: ['internalid']
-            }).run().each(res => {
-                if (res && res.id) idsExistentesEsc.push(res.id);
-                return true;
-            });
-        }
-
-        const idsEnviadosEsc = [];
-        for (let i = 0; i < lineCountEsc; i++) {
-            const idEsc = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_id', line: i });
-            const rinMin = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_min', line: i });
-            const rinMax = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_max', line: i });
-            const metaSelect = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_meta', line: i });
-            const cuota = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_cuota', line: i });
-            const descSelect = req.getSublistValue({ group: 'custpage_sublist_escalas', name: 'custpage_col_esc_desc', line: i });
-
-            if (!rinMin && !rinMax && !descSelect) continue;
-
-            if (idEsc) idsEnviadosEsc.push(idEsc);
-
-            let metaValor = (metaSelect !== null && metaSelect !== undefined && metaSelect !== '') ? parseFloat(metaSelect) / 100 : '';
-            let descValor = (descSelect !== null && descSelect !== undefined && descSelect !== '') ? parseFloat(descSelect) / 100 : '';
-
-            let recEsc = idEsc ? record.load({ type: CUSTOM_RECORD_ESCALAS, id: idEsc }) : record.create({ type: CUSTOM_RECORD_ESCALAS });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_padre', value: padreId || '' });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_rin_min', value: rinMin || '' });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_rin_max', value: rinMax || '' });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_meta_pct', value: metaValor });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_cuota', value: cuota || '' });
-            recEsc.setValue({ fieldId: 'custrecord_fut_em_descuento_pct', value: descValor });
-            recEsc.save({ ignoreMandatoryFields: true });
-
-            if (rinMin !== null && rinMin !== undefined && rinMin !== '' && 
-                rinMax !== null && rinMax !== undefined && rinMax !== '' && 
-                descSelect !== null && descSelect !== undefined && descSelect !== '') {
-                escalasNuevas.push({
-                    min: parseInt(rinMin, 10),
-                    max: parseInt(rinMax, 10),
-                    descuentoNum: parseFloat(descSelect)
+        // PASO 3: LANZAR MAP/REDUCE
+        if (accionMasiva === 'T' && marcaId !== '' && padreId !== '') {
+            try {
+                const mrTask = task.create({
+                    taskType: task.TaskType.MAP_REDUCE,
+                    scriptId: SCRIPT_ID_MR_ESCALAS,
+                    params: {
+                        custscript1: String(padreId),
+                        custscript2: String(marcaId),
+                        custscript3: JSON.stringify(escalasNuevasParaMR)
+                    }
                 });
+                mrTask.submit();
+            } catch (errMR) {
+                log.error('Error al lanzar la tarea Map/Reduce', errMR.message);
             }
         }
 
-        // Eliminar escalas borradas
-        idsExistentesEsc.forEach(idViejo => {
-            if (!idsEnviadosEsc.includes(idViejo)) {
-                try { record.delete({ type: CUSTOM_RECORD_ESCALAS, id: idViejo }); } catch (e) {}
+        // REDIRECCIÓN PARA MANTENER LA VISTA B Y MOSTRAR ÉXITO
+        const scriptObj = runtime.getCurrentScript();
+        redirect.toSuitelet({
+            scriptId: scriptObj.id,
+            deploymentId: scriptObj.deploymentId,
+            parameters: {
+                padreId: padreId,
+                tipo: tipoId,
+                marca: marcaId,
+                proveedor: proveedorId,
+                mode: 'edit',
+                exito: 'T'
             }
         });
-
-        // 3. PROPAGACIÓN AUTOMÁTICA (Solo si se presionó el botón personalizado de aplicar escalas)
-        if (accionMasiva === 'T' && escalasNuevas.length > 0 && marcaId && padreId) {
-            try {
-                const mapaDetallesExistentes = {};
-                search.create({
-                    type: CUSTOM_RECORD_DETALLE,
-                    filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
-                    columns: ['internalid', 'custrecord_fut_articulo']
-                }).run().each(res => {
-                    if (res && res.getValue('custrecord_fut_articulo')) {
-                        mapaDetallesExistentes[String(res.getValue('custrecord_fut_articulo'))] = res.id;
-                    }
-                    return true;
-                });
-
-                search.create({
-                    type: search.Type.ITEM,
-                    filters: [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F'], 'AND', ['custitem_diametro_rin', 'isnotempty', '']],
-                    columns: ['internalid', 'custitem_diametro_rin']
-                }).run().each(res => {
-                    if (!res) return true;
-                    const itemId = res.id;
-                    const rinTexto = res.getText('custitem_diametro_rin') || res.getValue('custitem_diametro_rin');
-
-                    if (rinTexto !== null && rinTexto !== undefined && rinTexto !== '') {
-                        const rinArticulo = parseFloat(rinTexto);
-
-                        if (!isNaN(rinArticulo)) {
-                            let escalaEncontrada = escalasNuevas.find(esc => rinArticulo >= esc.min && rinArticulo <= esc.max);
-
-                            if (escalaEncontrada) {
-                                let detalleId = mapaDetallesExistentes[String(itemId)];
-
-                                if (detalleId) {
-                                    let recDetalle = record.load({ type: CUSTOM_RECORD_DETALLE, id: detalleId });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_activo', value: true });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_porcentaje', value: escalaEncontrada.descuentoNum / 100 });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_descripcion', value: 'REBATE' });
-                                    recDetalle.save({ ignoreMandatoryFields: true });
-                                } else {
-                                    let recDetalle = record.create({ type: CUSTOM_RECORD_DETALLE });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_condicion_individual', value: padreId });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_articulo', value: itemId });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_activo', value: true });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_porcentaje', value: escalaEncontrada.descuentoNum / 100 });
-                                    recDetalle.setValue({ fieldId: 'custrecord_fut_descripcion', value: 'REBATE' });
-                                    recDetalle.save({ ignoreMandatoryFields: true });
-                                }
-                            }
-                        }
-                    }
-                    return true;
-                });
-            } catch (err) {
-                log.error('Error en propagación automática de escalas', err ? err.message : 'Error desconocido');
-            }
-        }
-
-        const mensajeExito = (accionMasiva === 'T') 
-            ? '¡Escalas guardadas y aplicadas a los artículos exitosamente!' 
-            : '¡Cambios guardados con éxito!';
-
-        context.response.write(`
-            <html><body style="font-family:sans-serif; text-align:center; padding-top:50px;">
-                <h2 style="color:#005587;">${mensajeExito}</h2>
-                <script>setTimeout(function(){ window.close(); }, 1500);</script>
-            </body></html>
-        `);
     }
 
     return { onRequest };
