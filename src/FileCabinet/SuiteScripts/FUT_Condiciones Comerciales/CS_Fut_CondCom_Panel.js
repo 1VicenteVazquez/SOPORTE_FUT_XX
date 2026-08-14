@@ -4,10 +4,9 @@
  *
  * CS_Fut_CondCom_Panel.js
  */
-define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
+define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog) => {
 
     function pageInit(context) {
-        // Exponemos la función al entorno global para el enlace HTML de la sublista
         window.abrirMatrizMetas = abrirMatrizMetas;
     }
 
@@ -32,9 +31,13 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         const modo = rec.getValue('custpage_mode') || 'view';
 
         if (!prov || !marca) {
-            alert('Selecciona Proveedor y Marca para buscar.');
+            dialog.alert({
+                title: 'Información Requerida',
+                message: 'Por favor, selecciona un <b>Proveedor</b> y una <b>Marca</b> antes de realizar la búsqueda.'
+            });
             return;
         }
+        
 
         const suiteletUrl = url.resolveScript({
             scriptId: 'customscript_fut_sl_condcom_panel',
@@ -51,14 +54,13 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         const prov = rec.getValue('custpage_proveedor');
         const marca = rec.getValue('custpage_marca');
 
-        // Abre la ventana emergente (Popup) del Suitelet de Metas
         const popupUrl = url.resolveScript({
             scriptId: 'customscript_fut_sl_condcom_metas', 
             deploymentId: 'customdeploy_fut_sl_condcom_metas', 
             params: { proveedor: prov, marca: marca, registroId: registroId, mode: modo, hideNavBar: 'T' }
         });
         
-        window.open(popupUrl, 'PopupMatrizMetas', 'width=800,height=500,resizable=yes,scrollbars=yes');
+        window.open(popupUrl, 'PopupMatrizMetas', 'width=900,height=500,resizable=yes,scrollbars=yes');
     }
 
     function fieldChanged(context) {
@@ -76,10 +78,40 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         }
     }
 
+    // --- REGLA DE NEGOCIO: VALIDACIÓN CON UI DIALOG ---
+    function saveRecord(context) {
+        const rec = context.currentRecord;
+        const sublistId = 'custpage_sublist';
+        
+        const lineCount = rec.getLineCount({ sublistId: sublistId });
+        
+        if (lineCount > 0) {
+            let condicionesActivas = 0;
+
+            for (let i = 0; i < lineCount; i++) {
+                const isActivo = rec.getSublistValue({ sublistId: sublistId, fieldId: 'custpage_col_activo', line: i });
+                if (isActivo === true || isActivo === 'T') {
+                    condicionesActivas++;
+                }
+            }
+
+            if (condicionesActivas > 1) {
+                dialog.alert({
+                    title: 'Restricción de Negocio',
+                    message: 'Solo puedes tener <b>UNA</b> condición "Activa" por Proveedor y Marca al mismo tiempo.<br><br>Por favor, desmarca las condiciones históricas antes de guardar.'
+                });
+                return false; 
+            }
+        }
+        
+        return true; 
+    }
+
     return {
         pageInit: pageInit,
         fieldChanged: fieldChanged,
         cancelarEdicion: cancelarEdicion,
-        buscarCondiciones: buscarCondiciones
+        buscarCondiciones: buscarCondiciones,
+        saveRecord: saveRecord
     };
 });

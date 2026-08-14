@@ -65,17 +65,34 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             }
         }
 
-        // --- CLAVE PARA CRUD: INLINEEDITOR permite crear registros nuevos desde la interfaz ---
         const tipoSublista = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
-        const sublist = form.addSublist({ id: 'custpage_sublist', type: tipoSublista, label: 'Reglas Comerciales' });
+        const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
+        
+        const sublist = form.addSublist({ id: 'custpage_sublist', type: tipoSublista, label: 'Reglas de Condiciones Comerciales' });
         
         sublist.addField({ id: 'custpage_col_id', type: serverWidget.FieldType.TEXT, label: 'ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
-        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
+        const fldProvSub = sublist.addField({ id: 'custpage_col_prov_txt', type: serverWidget.FieldType.TEXT, label: 'Proveedor' });
+        fldProvSub.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         
-        sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Nombre de la Condición' }).isMandatory = true;
+        const fldMarcaSub = sublist.addField({ id: 'custpage_col_marca_txt', type: serverWidget.FieldType.TEXT, label: 'Marca' });
+        fldMarcaSub.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // --- Columnas de Auditoría ---
+        const fldCreado = sublist.addField({ id: 'custpage_col_creado', type: serverWidget.FieldType.TEXT, label: 'Fecha de Creación' });
+        fldCreado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
+        fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        // ------------------------------------
+
+        sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
-        sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' });
+        const fldCondicion = sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Nombre de la Condición' });
+        fldCondicion.updateDisplayType({ displayType: displayModo });
+        if (isEdit) fldCondicion.isMandatory = true; 
+        
+        sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
         
         const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
         if (isEdit) colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
@@ -83,18 +100,32 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         if (proveedorId && marcaId) {
             let lineIndex = 0;
             
+            // Columas de auditoría: fecha de creación y última modificación
             search.create({
                 type: CUSTOM_RECORD_PADRE,
                 filters: [[FIELD_PROVEEDOR, 'anyof', proveedorId], 'AND', [FIELD_MARCA, 'anyof', marcaId]],
-                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO]
+                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
             }).run().each(res => {
                 
                 const idRegistro = res.id;
+                
+                const provTxt = res.getText(FIELD_PROVEEDOR) || res.getValue(FIELD_PROVEEDOR) || '---';
+                const marcaTxt = res.getText(FIELD_MARCA) || res.getValue(FIELD_MARCA) || '---';
+                
+                const fechaCreacion = res.getValue('created') || '';
+                const fechaModificacion = res.getValue('lastmodified') || '';
+
                 const estaActivo = res.getValue(FIELD_ACTIVO);
                 const nombre = res.getValue(FIELD_NOMBRE) || res.getText(FIELD_NOMBRE) || 'Sin Nombre';
                 const prontoPago = res.getValue(FIELD_PRONTO_PAGO);
 
                 sublist.setSublistValue({ id: 'custpage_col_id', line: lineIndex, value: idRegistro });
+                sublist.setSublistValue({ id: 'custpage_col_prov_txt', line: lineIndex, value: provTxt });
+                sublist.setSublistValue({ id: 'custpage_col_marca_txt', line: lineIndex, value: marcaTxt });
+                
+                if (fechaCreacion) sublist.setSublistValue({ id: 'custpage_col_creado', line: lineIndex, value: fechaCreacion });
+                if (fechaModificacion) sublist.setSublistValue({ id: 'custpage_col_modificado', line: lineIndex, value: fechaModificacion });
+
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: lineIndex, value: (estaActivo === 'T' || estaActivo === true) ? 'T' : 'F' });
                 sublist.setSublistValue({ id: 'custpage_col_condicion', line: lineIndex, value: nombre });
                 
@@ -139,7 +170,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             const nombreCond = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_condicion', line: i });
             const prontoPago = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_pp', line: i });
 
-            // UPDATE: Si la fila tiene ID, actualiza el registro existente
             if (idRegistro) {
                 try {
                     const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
@@ -150,9 +180,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 } catch (e) { 
                     log.error(`Error actualizando Cabecera ID ${idRegistro}`, e.message); 
                 }
-            } 
-            // CREATE: Si la fila no tiene ID y tiene nombre, crea un registro nuevo desde el panel
-            else if (nombreCond) {
+            } else if (nombreCond) {
                 try {
                     const nuevoRec = record.create({ type: CUSTOM_RECORD_PADRE });
                     nuevoRec.setValue({ fieldId: FIELD_PROVEEDOR, value: proveedorId });

@@ -9,6 +9,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
     const RECORD_META = 'customrecord_fut_meta';
     const FLD_PADRE = 'custrecord_fut_meta_padre'; 
+    const FLD_NOMBRE_ESCALA = 'custrecord_meta_nombre'; 
     const FLD_RIN_MIN = 'custrecord_rin_min';
     const FLD_RIN_MAX = 'custrecord_rin_max';
     const FLD_META_PCT = 'custrecord_meta_pct';
@@ -40,8 +41,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             } catch(e) {}
         }
 
-        const form = serverWidget.createForm({ title: 'Matriz de Metas: ' + nombrePadre, hideNavBar: true });
-        
+        const form = serverWidget.createForm({ title: 'Rebates/Metas: ' + nombrePadre, hideNavBar: true });
         form.clientScriptModulePath = './CS_Fut_CondCom_Metas.js';
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' })
@@ -50,25 +50,47 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID Padre' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
 
-        // Si está en view, usamos LIST (solo lectura); si está en edit, INLINEEDITOR para agregar/editar filas
         const tipoSublista = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
-        const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Escalas por Segmento de Rin' });
+        const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
+        const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Segmento de Rin' });
         
-        sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Nombre de la Escala' }).isMandatory = true;
-        sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' }).isMandatory = true;
-        sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' }).isMandatory = true;
-        sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.PERCENT, label: 'Meta a Alcanzar (%)' }).isMandatory = true;
-        sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo (Items)' }).isMandatory = true;
-        sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' }).isMandatory = true;
+        const fldNombre = sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Segmento' });
+        fldNombre.updateDisplayType({ displayType: displayModo });
+        
+        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' });
+        fldRinMin.updateDisplayType({ displayType: displayModo });
+        
+        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' });
+        fldRinMax.updateDisplayType({ displayType: displayModo });
+        
+        const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.PERCENT, label: 'Meta a Alcanzar (%)' });
+        fldMeta.updateDisplayType({ displayType: displayModo });
+        
+        const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
+        fldObj.updateDisplayType({ displayType: displayModo });
+        
+        const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
+        fldDesc.updateDisplayType({ displayType: displayModo });
+
+        if (isEdit) {
+            fldNombre.isMandatory = true;
+            fldRinMin.isMandatory = true;
+            fldRinMax.isMandatory = true;
+            fldMeta.isMandatory = true;
+            fldObj.isMandatory = true;
+            fldDesc.isMandatory = true;
+        }
 
         if (registroId) {
             let line = 0;
             search.create({
                 type: RECORD_META,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                columns: ['name', FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
+                // CAMBIO CLAVE: Buscamos el campo personalizado en lugar de 'name'
+                columns: [FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
             }).run().each(res => {
-                let nombre = res.getValue('name');
+                // CAMBIO CLAVE: Extraemos el valor del campo personalizado
+                let nombre = res.getValue(FLD_NOMBRE_ESCALA);
                 if (nombre) sublist.setSublistValue({ id: 'custpage_col_nombre', line: line, value: nombre });
 
                 sublist.setSublistValue({ id: 'custpage_col_rin_min', line: line, value: res.getValue(FLD_RIN_MIN) || 0 });
@@ -87,7 +109,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             });
         }
 
-        // Botonera alineada al comportamiento del Panel Principal
         if (isEdit) {
             form.addSubmitButton({ label: 'Guardar Matriz' });
             form.addButton({ id: 'btn_cancelar', label: 'Cancelar', functionName: 'cancelarEdicionMetas' });
@@ -104,7 +125,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const registroId = req.parameters.custpage_registro_id;
         const mode = req.parameters.custpage_mode;
 
-        // Si estaba en view y le dio al botón de "Editar", redirigimos el popup a modo edit
         if (mode === 'view') {
             redirect.toSuitelet({
                 scriptId: 'customscript_fut_sl_condcom_metas',
@@ -114,7 +134,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             return;
         }
 
-        // Si estaba en edit, procesamos el guardado (Wipe & Replace)
         if (registroId) {
             try {
                 search.create({
@@ -137,7 +156,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const nuevoRegistro = record.create({ type: RECORD_META });
                     nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
                     
-                    if(nombreMeta) nuevoRegistro.setValue({ fieldId: 'name', value: nombreMeta });
+                    // CAMBIO CLAVE: Guardamos en el campo personalizado
+                    if(nombreMeta) nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: nombreMeta });
+                    
                     if(rinMin) nuevoRegistro.setValue({ fieldId: FLD_RIN_MIN, value: rinMin });
                     if(rinMax) nuevoRegistro.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
                     if(metaPct) nuevoRegistro.setValue({ fieldId: FLD_META_PCT, value: parseFloat(metaPct) });
@@ -147,13 +168,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRegistro.save({ ignoreMandatoryFields: true });
                 }
             } catch (e) {
-                log.error('Error procesando Matriz de Metas', e.message);
+                log.error('Error procesando Rebates/Metas', e.message);
             }
         }
 
         context.response.write(`
             <html><body style="font-family:sans-serif; text-align:center; padding-top:40px;">
-                <h3 style="color:#28a745;">¡Matriz de metas actualizada con éxito!</h3>
+                <h3 style="color:#28a745;">¡Rebates y Metas actualizada con éxito!</h3>
                 <script>
                     setTimeout(function(){ 
                         if(window.opener) window.opener.location.reload(); 
