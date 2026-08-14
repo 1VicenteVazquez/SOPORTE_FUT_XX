@@ -19,7 +19,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
         const registroId = params.registroId;
         const isEdit = (params.mode === 'edit');
 
-        // ¡AQUÍ TAMBIÉN! hideNavBar: true
+        // hideNavBar: true
         const form = serverWidget.createForm({ 
             title: isEdit ? 'Configurar Pronto Pago' : 'Pronto Pago',
             hideNavBar: true
@@ -31,7 +31,7 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
         form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
 
-        // 1. CAMBIO A LISTA DESPLEGABLE (SELECT)
+        // 1. Lista desplegable
         const fldPorcentaje = form.addField({ id: 'custpage_porcentaje', type: serverWidget.FieldType.SELECT, label: 'Porcentaje de Pronto Pago (%)' });
         fldPorcentaje.addSelectOption({ value: '', text: '- N/A -' });
         

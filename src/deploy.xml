@@ -14,6 +14,16 @@
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaA.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaC.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaD.js</path>
+                <path>~/FileCabinet/SuiteScripts/FUT_Condiciones/CS_Fut_CondCom_Metas</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones/CS_Fut_CondCom_Panel</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones/SL_Fut_CondCom_Metas</path>
+        -->
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Metas.js</path>
+        
 
     </files>
 </deploy>   

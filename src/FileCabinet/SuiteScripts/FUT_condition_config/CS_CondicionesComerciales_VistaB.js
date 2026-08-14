@@ -27,7 +27,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
         }
     }
 
-    // Función refactorizada para leer los filtros directamente del registro
+    // Leer los filtros directamente del registro
     function recargarVentana(rec, page) {
         const padreId = rec.getValue('custpage_padre_id');
         const tipoId = rec.getValue('custpage_tipo_id');
