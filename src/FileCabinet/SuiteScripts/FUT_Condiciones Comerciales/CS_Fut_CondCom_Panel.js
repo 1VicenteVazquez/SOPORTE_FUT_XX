@@ -37,7 +37,6 @@ define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog)
             });
             return;
         }
-        
 
         const suiteletUrl = url.resolveScript({
             scriptId: 'customscript_fut_sl_condcom_panel',

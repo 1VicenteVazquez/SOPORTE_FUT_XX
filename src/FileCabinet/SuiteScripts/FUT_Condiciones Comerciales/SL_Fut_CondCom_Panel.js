@@ -4,6 +4,13 @@
  * @NModuleScope SameAccount
  *
  * SL_Fut_CondCom_Panel.js
+ *
+ * FIX: se agrega el tracking de IDs originales (custpage_ids_originales)
+ * y la eliminación en base de datos de las condiciones que el usuario
+ * quita del sublist antes de guardar. Antes, una línea borrada en el
+ * inline editor simplemente no llegaba en el POST y por lo tanto nunca
+ * se procesaba (ni se actualizaba, ni se eliminaba), quedando activa
+ * en la base de datos junto con la condición nueva.
  */
 define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (serverWidget, search, record, redirect, log) => {
 
@@ -32,6 +39,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
+
+        // --- FIX: campo oculto para rastrear qué IDs existían al abrir el formulario ---
+        const idsOriginalesField = form.addField({ id: 'custpage_ids_originales', type: serverWidget.FieldType.TEXT, label: 'IDs Originales' })
+            .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        // -------------------------------------------------------------------------------
 
         const proveedorField = form.addField({ id: 'custpage_proveedor', type: serverWidget.FieldType.SELECT, label: 'Proveedor', source: 'vendor' });
         proveedorField.isMandatory = true;
@@ -99,6 +111,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (proveedorId && marcaId) {
             let lineIndex = 0;
+
+            // --- FIX: acumulador de IDs existentes en este render ---
+            const idsOriginales = [];
+            // ---------------------------------------------------------
             
             // Columas de auditoría: fecha de creación y última modificación
             search.create({
@@ -108,6 +124,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             }).run().each(res => {
                 
                 const idRegistro = res.id;
+
+                // --- FIX: registrar este ID como "existente antes de editar" ---
+                idsOriginales.push(idRegistro);
+                // -----------------------------------------------------------------
                 
                 const provTxt = res.getText(FIELD_PROVEEDOR) || res.getValue(FIELD_PROVEEDOR) || '---';
                 const marcaTxt = res.getText(FIELD_MARCA) || res.getValue(FIELD_MARCA) || '---';
@@ -143,6 +163,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 lineIndex++;
                 return true;
             });
+
+            // --- FIX: persistir la lista de IDs originales en el campo oculto ---
+            idsOriginalesField.defaultValue = idsOriginales.join(',');
+            // -----------------------------------------------------------------------
         }
         context.response.writePage(form);
     }
@@ -162,6 +186,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             return; 
         }
 
+        // --- FIX: IDs que existían cuando se abrió el formulario de edición ---
+        const idsOriginales = (req.parameters.custpage_ids_originales || '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id);
+
+        // --- FIX: IDs que sí llegaron en este submit (líneas que el usuario conservó) ---
+        const idsEnviados = [];
+
         const lineCount = req.getLineCount({ group: 'custpage_sublist' });
         
         for (let i = 0; i < lineCount; i++) {
@@ -171,6 +204,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             const prontoPago = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_pp', line: i });
 
             if (idRegistro) {
+                idsEnviados.push(String(idRegistro).trim());
                 try {
                     const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
                     rec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
@@ -194,6 +228,21 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 }
             }
         }
+
+        // --- FIX: eliminar en base de datos las condiciones que el usuario quitó ---
+        // Cualquier ID que existía al abrir el formulario pero que no llegó en este
+        // submit fue borrado por el usuario en el sublist (inline editor) y debe
+        // eliminarse también en la base de datos.
+        const idsAEliminar = idsOriginales.filter(id => idsEnviados.indexOf(id) === -1);
+
+        idsAEliminar.forEach(id => {
+            try {
+                record.delete({ type: CUSTOM_RECORD_PADRE, id: id });
+            } catch (e) {
+                log.error(`Error eliminando condición ID ${id}`, e.message);
+            }
+        });
+        // -----------------------------------------------------------------------------
 
         redirect.toSuitelet({
             scriptId: 'customscript_fut_sl_condcom_panel',
