@@ -1,0 +1,193 @@
+/**
+ * @NApiVersion 2.1
+ * @NScriptType UserEventScript
+ * @NModuleScope SameAccount
+ * 
+ * UE_Fut_CalculoCostoRef.js
+ */
+define(['N/record', 'N/search', 'N/log'], (record, search, log) => { 
+
+    // --- CONSTANTES DE CAMPOS PERSONALIZADOS ---
+    const FLD_ITEM_MARCA = 'custitem_nso_marca'; 
+    const FLD_ITEM_RIN = 'custitem_diametro_rin'; 
+    // ----------------------------------------
+
+    const beforeSubmit = (scriptContext) => {
+        if (scriptContext.type !== scriptContext.UserEventType.CREATE && 
+            scriptContext.type !== scriptContext.UserEventType.EDIT) {
+            return;
+        }
+
+        const newRecord = scriptContext.newRecord;
+        const proveedorId = newRecord.getValue({ fieldId: 'entity' }); 
+        const itemCount = newRecord.getLineCount({ sublistId: 'item' });
+        const factorIVA = 1.16; 
+
+        if (!proveedorId || itemCount === 0) return;
+
+        // 1. CARGAMOS EN CACHÉ TODAS LAS CONDICIONES ACTIVAS
+        const condicionesCache = {}; 
+        
+        search.create({
+            type: 'customrecord_fut_condcom',
+            filters: [
+                ['custrecord_condcom_proveedor', 'anyof', proveedorId],
+                'AND',
+                ['custrecord_condcom_activo', 'is', 'T']
+            ],
+            columns: ['internalid', 'custrecord_condcom_marca', 'custrecord_condcom_pronto_pago']
+        }).run().each(res => {
+            let condId = res.id;
+            let marcaId = res.getValue('custrecord_condcom_marca');
+            
+            let ppString = res.getValue('custrecord_condcom_pronto_pago') || '0';
+            let ppFloat = parseFloat(ppString.toString().replace('%', ''));
+            let ppDecimal = (ppFloat > 1) ? (ppFloat / 100) : ppFloat; 
+
+            condicionesCache[marcaId] = { id: condId, pp: ppDecimal, metas: [] };
+            return true;
+        });
+
+        // 2. CARGAMOS LAS METAS (ESCALONES DE RIN)
+        const condicionesIds = Object.values(condicionesCache).map(c => c.id);
+        
+        if (condicionesIds.length > 0) {
+            search.create({
+                type: 'customrecord_fut_meta',
+                filters: [['custrecord_fut_meta_padre', 'anyof', condicionesIds]],
+                columns: ['custrecord_fut_meta_padre', 'custrecord_rin_min', 'custrecord_rin_max', 'custrecord_pct_descuento']
+            }).run().each(res => {
+                let padreId = res.getValue('custrecord_fut_meta_padre');
+                let rinMin = parseInt(res.getValue('custrecord_rin_min')) || 0;
+                let rinMax = parseInt(res.getValue('custrecord_rin_max')) || 0;
+                
+                let descString = res.getValue('custrecord_pct_descuento') || '0';
+                let descFloat = parseFloat(descString.toString().replace('%', ''));
+                let descDecimal = (descFloat > 1) ? (descFloat / 100) : descFloat;
+
+                for (let marcaId in condicionesCache) {
+                    if (condicionesCache[marcaId].id === padreId) {
+                        condicionesCache[marcaId].metas.push({ min: rinMin, max: rinMax, descuento: descDecimal });
+                        break;
+                    }
+                }
+                return true;
+            });
+        }
+
+        // 3. PROCESAMOS LÍNEA POR LÍNEA
+        for (let i = 0; i < itemCount; i++) {
+            
+            let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+            let arribo = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
+            let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
+
+            if (itemId && arribo > 0 && costoFactura > 0) {
+                
+                let itemFields = search.lookupFields({
+                    type: search.Type.ITEM,
+                    id: itemId,
+                    columns: ['averagecost', 'quantityonhand', 'recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN]
+                });
+
+                let stockActual = parseFloat(itemFields.quantityonhand) || 0;
+                let costoSistema = parseFloat(itemFields.averagecost) || 0;
+                
+                let recordType = itemFields.recordtype;
+                if (Array.isArray(recordType)) recordType = recordType[0]?.value;
+                else if (typeof recordType === 'object') recordType = recordType.value;
+
+                let marcaArticulo = itemFields[FLD_ITEM_MARCA];
+                if (Array.isArray(marcaArticulo)) marcaArticulo = marcaArticulo[0]?.value;
+                else if (typeof marcaArticulo === 'object') marcaArticulo = marcaArticulo.value;
+
+                // --- EXTRACCIÓN SEGURA DEL RIN (TIPO LISTA) ---
+                let rinRaw = itemFields[FLD_ITEM_RIN];
+                if (Array.isArray(rinRaw)) {
+                    rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
+                } else if (typeof rinRaw === 'object') {
+                    rinRaw = rinRaw.text || rinRaw.value;
+                }
+                let rinArticulo = parseInt(rinRaw) || 0;
+                // ----------------------------------------------
+
+                // ========================================================
+                // LOGICA DE CÁLCULO DE DESCUENTOS BASADA EN CONDICIONES Y METAS
+                // ========================================================
+                let pctProntoPago = 0;
+                let pctRebate = 0;
+
+                if (marcaArticulo && condicionesCache[marcaArticulo]) {
+                    const condicionActiva = condicionesCache[marcaArticulo];
+                    pctProntoPago = condicionActiva.pp;
+
+                    if (rinArticulo > 0 && condicionActiva.metas.length > 0) {
+                        for (let m = 0; m < condicionActiva.metas.length; m++) {
+                            let escalon = condicionActiva.metas[m];
+                            if (rinArticulo >= escalon.min && rinArticulo <= escalon.max) {
+                                pctRebate = escalon.descuento; 
+                                break; 
+                            }
+                        }
+                    }
+                }
+                // ========================================================
+
+                if (scriptContext.type === scriptContext.UserEventType.EDIT) {
+                    let valorTotalActual = stockActual * costoSistema;
+                    let valorArriboOriginal = arribo * costoFactura;
+                    
+                    stockActual = stockActual - arribo; 
+                    let valorStockAnterior = valorTotalActual - valorArriboOriginal; 
+                    
+                    if (stockActual > 0) {
+                        costoSistema = valorStockAnterior / stockActual;
+                    } else {
+                        costoSistema = 0;
+                    }
+                }
+
+                // Cálculo Financiero Real
+                let descuentoProntoPago = costoFactura * pctProntoPago;
+                let descuentoRebate = costoFactura * pctRebate;
+                let costoNeto = (costoFactura - descuentoProntoPago - descuentoRebate) * factorIVA;
+
+                let valorArribo = arribo * costoNeto;
+                let valorStock = stockActual * costoSistema;
+                let numerador = valorArribo + valorStock;
+                let denominador = arribo + stockActual;
+
+                let costoRef = (denominador > 0) ? (numerador / denominador) : 0;
+
+                log.debug({
+                    title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
+                    details: `PP: ${pctProntoPago*100}% | Rebate Rin: ${pctRebate*100}% | Neto: ${costoNeto} | REFMXP: ${costoRef}`
+                });
+
+                newRecord.setSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'custcol_precio_unitario_real', 
+                    line: i,
+                    value: costoRef
+                });
+
+                if (recordType) {
+                    try {
+                        record.submitFields({
+                            type: recordType,
+                            id: itemId,
+                            values: { 'custitemcustitem_nso_refmxp': costoRef },
+                            options: { enableSourcing: false, ignoreMandatoryFields: true }
+                        });
+                    } catch (e) {
+                        log.error(`Error actualizando el Artículo ${itemId}`, e.message);
+                    }
+                }
+            }
+        }
+    }
+
+    return {
+        beforeSubmit: beforeSubmit
+    };
+});
