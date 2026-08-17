@@ -90,7 +90,16 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         }
 
         // PESTAÑA 2
-        const sublistEscalas = form.addSublist({ id: 'custpage_sublist_escalas', type: serverWidget.SublistType.INLINEEDITOR, label: 'Escalas por Segmento de Rin', tab: 'custpage_tab_escalas' });
+        // Definimos dinámicamente el tipo de sublista: INLINEEDITOR para edición, LIST para consulta
+        const sublistTypeEsc = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
+        
+        const sublistEscalas = form.addSublist({ 
+            id: 'custpage_sublist_escalas', 
+            type: sublistTypeEsc, 
+            label: 'Escalas por Segmento de Rin', 
+            tab: 'custpage_tab_escalas' 
+        });
+
         sublistEscalas.addField({ id: 'custpage_col_esc_id', type: serverWidget.FieldType.TEXT, label: 'ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
         const displayEscMode = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
