@@ -7,14 +7,16 @@
  */
 define(['N/record', 'N/search', 'N/log'], (record, search, log) => { 
 
-    // --- CONSTANTES DE CAMPOS PERSONALIZADOS ---
+    // CONSTANTES DE CAMPOS PERSONALIZADOS 
     const FLD_ITEM_MARCA = 'custitem_nso_marca'; 
     const FLD_ITEM_RIN = 'custitem_diametro_rin'; 
+    const FLD_ITEM_REFMXP = 'custitemcustitem_nso_refmxp'; 
     // ----------------------------------------
 
     const beforeSubmit = (scriptContext) => {
-        if (scriptContext.type !== scriptContext.UserEventType.CREATE && 
-            scriptContext.type !== scriptContext.UserEventType.EDIT) {
+        
+        // Ejecutar al crear una recepción
+        if (scriptContext.type !== scriptContext.UserEventType.CREATE) {
             return;
         }
 
@@ -48,7 +50,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             return true;
         });
 
-        // 2. CARGAMOS LAS METAS (ESCALONES DE RIN)
+        // 2. CARGAMOS LAS METAS
         const condicionesIds = Object.values(condicionesCache).map(c => c.id);
         
         if (condicionesIds.length > 0) {
@@ -83,15 +85,15 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
 
             if (itemId && arribo > 0 && costoFactura > 0) {
-                
+                // Obtenciíon del REFMXP anterior
                 let itemFields = search.lookupFields({
                     type: search.Type.ITEM,
                     id: itemId,
-                    columns: ['averagecost', 'quantityonhand', 'recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN]
+                    columns: ['quantityonhand', 'recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
                 });
 
                 let stockActual = parseFloat(itemFields.quantityonhand) || 0;
-                let costoSistema = parseFloat(itemFields.averagecost) || 0;
+                let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
                 
                 let recordType = itemFields.recordtype;
                 if (Array.isArray(recordType)) recordType = recordType[0]?.value;
@@ -101,7 +103,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 if (Array.isArray(marcaArticulo)) marcaArticulo = marcaArticulo[0]?.value;
                 else if (typeof marcaArticulo === 'object') marcaArticulo = marcaArticulo.value;
 
-                // --- EXTRACCIÓN SEGURA DEL RIN (TIPO LISTA) ---
+                // OBTENER TAMAÑO DEL RIN
                 let rinRaw = itemFields[FLD_ITEM_RIN];
                 if (Array.isArray(rinRaw)) {
                     rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
@@ -111,9 +113,8 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 let rinArticulo = parseInt(rinRaw) || 0;
                 // ----------------------------------------------
 
-                // ========================================================
-                // LOGICA DE CÁLCULO DE DESCUENTOS BASADA EN CONDICIONES Y METAS
-                // ========================================================
+
+                // LOGICA CALCULO
                 let pctProntoPago = 0;
                 let pctRebate = 0;
 
@@ -133,27 +134,14 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 }
                 // ========================================================
 
-                if (scriptContext.type === scriptContext.UserEventType.EDIT) {
-                    let valorTotalActual = stockActual * costoSistema;
-                    let valorArriboOriginal = arribo * costoFactura;
-                    
-                    stockActual = stockActual - arribo; 
-                    let valorStockAnterior = valorTotalActual - valorArriboOriginal; 
-                    
-                    if (stockActual > 0) {
-                        costoSistema = valorStockAnterior / stockActual;
-                    } else {
-                        costoSistema = 0;
-                    }
-                }
-
-                // Cálculo Financiero Real
+                // Cálculo Financiero Real (Modo CREATE exclusivo)
                 let descuentoProntoPago = costoFactura * pctProntoPago;
                 let descuentoRebate = costoFactura * pctRebate;
                 let costoNeto = (costoFactura - descuentoProntoPago - descuentoRebate) * factorIVA;
 
+                // --- CAMBIO CLAVE: Promedio usando el Costo Ref Anterior ---
                 let valorArribo = arribo * costoNeto;
-                let valorStock = stockActual * costoSistema;
+                let valorStock = stockActual * costoRefAnterior; 
                 let numerador = valorArribo + valorStock;
                 let denominador = arribo + stockActual;
 
@@ -161,22 +149,22 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
                 log.debug({
                     title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
-                    details: `PP: ${pctProntoPago*100}% | Rebate Rin: ${pctRebate*100}% | Neto: ${costoNeto} | REFMXP: ${costoRef}`
+                    details: `Stock: ${stockActual} | RefAnterior: ${costoRefAnterior} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
                 });
 
-                newRecord.setSublistValue({
+                /*newRecord.setSublistValue({
                     sublistId: 'item',
                     fieldId: 'custcol_precio_unitario_real', 
                     line: i,
                     value: costoRef
-                });
+                }); */
 
                 if (recordType) {
                     try {
                         record.submitFields({
                             type: recordType,
                             id: itemId,
-                            values: { 'custitemcustitem_nso_refmxp': costoRef },
+                            values: { [FLD_ITEM_REFMXP]: costoRef },
                             options: { enableSourcing: false, ignoreMandatoryFields: true }
                         });
                     } catch (e) {
