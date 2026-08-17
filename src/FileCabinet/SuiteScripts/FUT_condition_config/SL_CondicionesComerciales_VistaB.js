@@ -90,7 +90,16 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         }
 
         // PESTAÑA 2
-        const sublistEscalas = form.addSublist({ id: 'custpage_sublist_escalas', type: serverWidget.SublistType.INLINEEDITOR, label: 'Escalas por Segmento de Rin', tab: 'custpage_tab_escalas' });
+        // Definimos dinámicamente el tipo de sublista: INLINEEDITOR para edición, LIST para consulta
+        const sublistTypeEsc = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
+        
+        const sublistEscalas = form.addSublist({ 
+            id: 'custpage_sublist_escalas', 
+            type: sublistTypeEsc, 
+            label: 'Escalas por Segmento de Rin', 
+            tab: 'custpage_tab_escalas' 
+        });
+
         sublistEscalas.addField({ id: 'custpage_col_esc_id', type: serverWidget.FieldType.TEXT, label: 'ID' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         
         const displayEscMode = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
@@ -160,14 +169,24 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
             columns: ['custrecord_fut_articulo', 'custrecord_fut_activo', 'custrecord_fut_porcentaje', 'custrecord_fut_descripcion']
         }).run().each(res => {
+            let activoDb = res.getValue('custrecord_fut_activo');
+            
+            // LOG DE DEPURACIÓN 1: Ver qué trae exactamente la base de datos
+            log.debug('DEBUG_CARGA_ACTIVO', {
+                articulo: res.getValue('custrecord_fut_articulo'),
+                activoCrudoDB: activoDb,
+                tipoDato: typeof activoDb
+            });
+
             registrosHijo[res.getValue('custrecord_fut_articulo')] = {
                 id: res.id,
-                activo: res.getValue('custrecord_fut_activo') === 'T',
+                activo: (activoDb === 'T' || activoDb === true || activoDb === 'true'),
                 pct: parseFloat(res.getValue('custrecord_fut_porcentaje')),
                 desc: res.getValue('custrecord_fut_descripcion')
             };
             return true;
         });
+
 
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
@@ -175,6 +194,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             filtrosItem.push('AND', ['formulatext: TO_CHAR({custitem_diametro_rin})', 'contains', filtroRinTexto]);
         }
 
+
+//--
         const pagedData = search.create({ 
             type: search.Type.ITEM, 
             filters: filtrosItem, 
@@ -211,6 +232,40 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             let line = 0;
             let currentPageData = pagedData.fetch({ index: pageIndex }).data;
 
+//--
+            // --- PAGINACION 2 ---
+        // const startIndex = pageIndex * PAGE_SIZE;
+        // const endIndex = startIndex + PAGE_SIZE;
+
+        // const rawResults = search.create({ 
+        //     type: search.Type.ITEM, 
+        //     filters: filtrosItem, 
+        //     columns: ['internalid', 'itemid', 'custitem_diametro_rin'] 
+        // }).run().getRange({ start: startIndex, end: endIndex + 1 }) || [];
+
+        // const hasNextPage = rawResults.length > PAGE_SIZE;
+        // const currentPageData = rawResults.slice(0, PAGE_SIZE);
+
+        // if (currentPageData.length > 0) {
+        //     let htmlBtns = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; font-size: 13px; color: #333;">`;
+            
+        //     if (pageIndex > 0) {
+        //         htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="color: #255599; text-decoration: none; font-weight: bold; margin-right: 10px;" title="Anterior">&lsaquo; Anterior</a> | `;
+        //     }
+            
+        //     htmlBtns += `<span style="margin: 0 10px;">Página ${pageIndex + 1}</span>`;
+            
+        //     if (hasNextPage) {
+        //         htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="color: #255599; text-decoration: none; font-weight: bold; margin-left: 10px;" title="Siguiente">Siguiente &rsaquo;</a>`;
+        //     }
+            
+        //     htmlBtns += `</div>`;
+        //     htmlPaginacion.defaultValue = htmlBtns;
+
+        //     let line = 0;
+        // --- PAG 2 ---
+
+
             currentPageData.sort((a, b) => {
                 const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
                 const tieneB = registrosHijo[String(b.id)] ? 1 : 0;
@@ -228,10 +283,16 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
                 
                 if (dataHijo) {
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
-                    sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
                     
-                    let descFinal = (dataHijo.desc !== null && dataHijo.desc !== undefined) ? dataHijo.desc : txtPorDefecto;
-                    if (descFinal !== '') sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
+                    // Aseguramos que mande 'T' o 'F' estricto
+                    let valorCheckParaPantalla = dataHijo.activo ? 'T' : 'F';
+                    sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: valorCheckParaPantalla });
+                    
+                    log.debug('DEBUG_PINTAR_PANTALLA', {
+                        linea: line,
+                        articuloId: res.id,
+                        enviadoASublist: valorCheckParaPantalla
+                    });
                     
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         let numPct = parseFloat(dataHijo.pct);
@@ -344,16 +405,33 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         if (payloadArticulos !== '' && payloadArticulos !== '[]') {
             try {
                 const cambiosArt = JSON.parse(payloadArticulos);
+                
+                // LOG DE DEPURACIÓN 3: Ver qué recibe el servidor desde la pantalla
+                log.debug('DEBUG_PAYLOAD_RECIBIDO', cambiosArt);
+
                 cambiosArt.forEach(row => {
                     let valPorcentaje = (row.porcentaje !== null && row.porcentaje !== undefined && !isNaN(row.porcentaje)) ? parseFloat(row.porcentaje) : null;
                     
+                    // Validación estricta para saber si el usuario dejó la banderita prendida o apagada
+                    let isActivo = (row.activo === true || row.activo === 'T' || row.activo === 'true');
+                    
+
+                    log.debug('DEBUG_EVALUANDO_CHECK', {
+                        itemId: row.item,
+                        rowActivoCrudo: row.activo,
+                        isActivoInterpretado: isActivo
+                    });
+
+                    
                     if (row && row.id) {
+                        // Si el registro ya existe, respetamos lo que el usuario haya hecho con el check
                         let recDet = record.load({ type: CUSTOM_RECORD_DETALLE, id: row.id });
-                        recDet.setValue({ fieldId: 'custrecord_fut_activo', value: row.activo || false });
+                        recDet.setValue({ fieldId: 'custrecord_fut_activo', value: isActivo });
                         recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: valPorcentaje });
                         recDet.setValue({ fieldId: 'custrecord_fut_descripcion', value: row.descripcion || '' });
                         recDet.save({ ignoreMandatoryFields: true });
-                    } else if (row && row.activo) {
+                    } else if (isActivo) {
+                        // Si es nuevo, solo lo creamos si el usuario lo activó manualmente
                         let recDet = record.create({ type: CUSTOM_RECORD_DETALLE });
                         recDet.setValue({ fieldId: 'custrecord_fut_condicion_individual', value: padreId });
                         recDet.setValue({ fieldId: 'custrecord_fut_articulo', value: row.item });
@@ -387,19 +465,45 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         }
 
         // REDIRECCIÓN PARA MANTENER LA VISTA B Y MOSTRAR ÉXITO
-        const scriptObj = runtime.getCurrentScript();
-        redirect.toSuitelet({
-            scriptId: scriptObj.id,
-            deploymentId: scriptObj.deploymentId,
-            parameters: {
-                padreId: padreId,
-                tipo: tipoId,
-                marca: marcaId,
-                proveedor: proveedorId,
-                mode: 'edit',
-                exito: 'T'
-            }
-        });
+        if (accionMasiva === 'T') {
+            // BOTÓN "APLICAR ESCALAS": Recarga la ventana y muestra el mensaje verde
+            const scriptObj = runtime.getCurrentScript();
+            redirect.toSuitelet({
+                scriptId: scriptObj.id,
+                deploymentId: scriptObj.deploymentId,
+                parameters: {
+                    padreId: padreId,
+                    tipo: tipoId,
+                    marca: marcaId,
+                    proveedor: proveedorId,
+                    mode: 'edit',
+                    exito: 'T'
+                }
+            });
+        } else {
+            // BOTÓN "GUARDAR CAMBIOS": Muestra una pantalla en blanco por un segundo y cierra el popup
+            context.response.write(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Guardando...</title></head>
+                <body style="background-color: #f4f4f4; text-align: center; font-family: Arial, sans-serif; padding-top: 50px;">
+                    <h3>Guardando cambios...</h3>
+                    <script type="text/javascript">
+                        setTimeout(function() {
+                            if (window.opener) {
+                                // Si hay una ventana padre (es un popup), recarga el padre y cierra este popup
+                                window.opener.location.reload(); 
+                                window.close();
+                            } else {
+                                // Si se abrió en pestaña normal
+                                window.close(); 
+                            }
+                        }, 500); // Medio segundo de espera para que sea fluido
+                    </script>
+                </body>
+                </html>
+            `);
+        }
     }
 
     return { onRequest };
