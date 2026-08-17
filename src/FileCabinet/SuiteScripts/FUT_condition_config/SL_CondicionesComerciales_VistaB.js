@@ -169,14 +169,24 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             filters: [['custrecord_fut_condicion_individual', 'anyof', padreId]],
             columns: ['custrecord_fut_articulo', 'custrecord_fut_activo', 'custrecord_fut_porcentaje', 'custrecord_fut_descripcion']
         }).run().each(res => {
+            let activoDb = res.getValue('custrecord_fut_activo');
+            
+            // LOG DE DEPURACIÓN 1: Ver qué trae exactamente la base de datos
+            log.debug('DEBUG_CARGA_ACTIVO', {
+                articulo: res.getValue('custrecord_fut_articulo'),
+                activoCrudoDB: activoDb,
+                tipoDato: typeof activoDb
+            });
+
             registrosHijo[res.getValue('custrecord_fut_articulo')] = {
                 id: res.id,
-                activo: res.getValue('custrecord_fut_activo') === 'T',
+                activo: (activoDb === 'T' || activoDb === true || activoDb === 'true'),
                 pct: parseFloat(res.getValue('custrecord_fut_porcentaje')),
                 desc: res.getValue('custrecord_fut_descripcion')
             };
             return true;
         });
+
 
         let filtrosItem = [['custitem_nso_marca', 'anyof', marcaId], 'AND', ['isinactive', 'is', 'F']];
         if (filtroTexto) filtrosItem.push('AND', [['itemid', 'contains', filtroTexto], 'OR', ['displayname', 'contains', filtroTexto]]);
@@ -273,10 +283,16 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
                 
                 if (dataHijo) {
                     sublist.setSublistValue({ id: 'custpage_col_id', line: line, value: dataHijo.id });
-                    sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: dataHijo.activo ? 'T' : 'F' });
                     
-                    let descFinal = (dataHijo.desc !== null && dataHijo.desc !== undefined) ? dataHijo.desc : txtPorDefecto;
-                    if (descFinal !== '') sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: descFinal });
+                    // Aseguramos que mande 'T' o 'F' estricto
+                    let valorCheckParaPantalla = dataHijo.activo ? 'T' : 'F';
+                    sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: valorCheckParaPantalla });
+                    
+                    log.debug('DEBUG_PINTAR_PANTALLA', {
+                        linea: line,
+                        articuloId: res.id,
+                        enviadoASublist: valorCheckParaPantalla
+                    });
                     
                     if (dataHijo.pct !== null && dataHijo.pct !== '') {
                         let numPct = parseFloat(dataHijo.pct);
@@ -389,16 +405,33 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         if (payloadArticulos !== '' && payloadArticulos !== '[]') {
             try {
                 const cambiosArt = JSON.parse(payloadArticulos);
+                
+                // LOG DE DEPURACIÓN 3: Ver qué recibe el servidor desde la pantalla
+                log.debug('DEBUG_PAYLOAD_RECIBIDO', cambiosArt);
+
                 cambiosArt.forEach(row => {
                     let valPorcentaje = (row.porcentaje !== null && row.porcentaje !== undefined && !isNaN(row.porcentaje)) ? parseFloat(row.porcentaje) : null;
                     
+                    // Validación estricta para saber si el usuario dejó la banderita prendida o apagada
+                    let isActivo = (row.activo === true || row.activo === 'T' || row.activo === 'true');
+                    
+
+                    log.debug('DEBUG_EVALUANDO_CHECK', {
+                        itemId: row.item,
+                        rowActivoCrudo: row.activo,
+                        isActivoInterpretado: isActivo
+                    });
+
+                    
                     if (row && row.id) {
+                        // Si el registro ya existe, respetamos lo que el usuario haya hecho con el check
                         let recDet = record.load({ type: CUSTOM_RECORD_DETALLE, id: row.id });
-                        recDet.setValue({ fieldId: 'custrecord_fut_activo', value: row.activo || false });
+                        recDet.setValue({ fieldId: 'custrecord_fut_activo', value: isActivo });
                         recDet.setValue({ fieldId: 'custrecord_fut_porcentaje', value: valPorcentaje });
                         recDet.setValue({ fieldId: 'custrecord_fut_descripcion', value: row.descripcion || '' });
                         recDet.save({ ignoreMandatoryFields: true });
-                    } else if (row && row.activo) {
+                    } else if (isActivo) {
+                        // Si es nuevo, solo lo creamos si el usuario lo activó manualmente
                         let recDet = record.create({ type: CUSTOM_RECORD_DETALLE });
                         recDet.setValue({ fieldId: 'custrecord_fut_condicion_individual', value: padreId });
                         recDet.setValue({ fieldId: 'custrecord_fut_articulo', value: row.item });

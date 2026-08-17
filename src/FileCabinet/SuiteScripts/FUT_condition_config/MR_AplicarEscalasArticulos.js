@@ -2,7 +2,7 @@
  * @NApiVersion 2.1
  * @NScriptType MapReduceScript
  *
- * MR_AplicarEscalas.js
+ * MR_AplicarEscalasArticulos.js
  */
 define(['N/search', 'N/record', 'N/runtime', 'N/log'], (search, record, runtime, log) => {
 
@@ -91,9 +91,13 @@ define(['N/search', 'N/record', 'N/runtime', 'N/log'], (search, record, runtime,
             rec.setValue({ fieldId: 'custrecord_fut_articulo', value: itemId });
         }
 
-        rec.setValue({ fieldId: 'custrecord_fut_activo', value: true });
+        // ¡Lo sacamos de la condición! Así siempre se activa al correr el proceso masivo.
+        rec.setValue({ fieldId: 'custrecord_fut_activo', value: true }); 
         rec.setValue({ fieldId: 'custrecord_fut_porcentaje', value: escala.descuentoNum });
         rec.setValue({ fieldId: 'custrecord_fut_descripcion', value: 'REBATE' });
+
+
+
         rec.save({ ignoreMandatoryFields: true });
 
         log.audit('Detalle actualizado', { itemId, itemCodigo, detalleId: detalleId || 'Nuevo', porcentaje: escala.descuentoNum });
