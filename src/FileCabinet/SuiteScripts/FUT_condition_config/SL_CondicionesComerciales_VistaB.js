@@ -184,6 +184,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
             filtrosItem.push('AND', ['formulatext: TO_CHAR({custitem_diametro_rin})', 'contains', filtroRinTexto]);
         }
 
+
+//--
         const pagedData = search.create({ 
             type: search.Type.ITEM, 
             filters: filtrosItem, 
@@ -219,6 +221,40 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
 
             let line = 0;
             let currentPageData = pagedData.fetch({ index: pageIndex }).data;
+
+//--
+            // --- PAGINACION 2 ---
+        // const startIndex = pageIndex * PAGE_SIZE;
+        // const endIndex = startIndex + PAGE_SIZE;
+
+        // const rawResults = search.create({ 
+        //     type: search.Type.ITEM, 
+        //     filters: filtrosItem, 
+        //     columns: ['internalid', 'itemid', 'custitem_diametro_rin'] 
+        // }).run().getRange({ start: startIndex, end: endIndex + 1 }) || [];
+
+        // const hasNextPage = rawResults.length > PAGE_SIZE;
+        // const currentPageData = rawResults.slice(0, PAGE_SIZE);
+
+        // if (currentPageData.length > 0) {
+        //     let htmlBtns = `<div style="margin: 10px 0; font-family: Open Sans, Helvetica, sans-serif; font-size: 13px; color: #333;">`;
+            
+        //     if (pageIndex > 0) {
+        //         htmlBtns += `<a href="#" onclick="window.cambiarPagina(${pageIndex - 1}); return false;" style="color: #255599; text-decoration: none; font-weight: bold; margin-right: 10px;" title="Anterior">&lsaquo; Anterior</a> | `;
+        //     }
+            
+        //     htmlBtns += `<span style="margin: 0 10px;">Página ${pageIndex + 1}</span>`;
+            
+        //     if (hasNextPage) {
+        //         htmlBtns += ` | <a href="#" onclick="window.cambiarPagina(${pageIndex + 1}); return false;" style="color: #255599; text-decoration: none; font-weight: bold; margin-left: 10px;" title="Siguiente">Siguiente &rsaquo;</a>`;
+        //     }
+            
+        //     htmlBtns += `</div>`;
+        //     htmlPaginacion.defaultValue = htmlBtns;
+
+        //     let line = 0;
+        // --- PAG 2 ---
+
 
             currentPageData.sort((a, b) => {
                 const tieneA = registrosHijo[String(a.id)] ? 1 : 0;
@@ -396,19 +432,45 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/task', 'N/redirect', 'N/
         }
 
         // REDIRECCIÓN PARA MANTENER LA VISTA B Y MOSTRAR ÉXITO
-        const scriptObj = runtime.getCurrentScript();
-        redirect.toSuitelet({
-            scriptId: scriptObj.id,
-            deploymentId: scriptObj.deploymentId,
-            parameters: {
-                padreId: padreId,
-                tipo: tipoId,
-                marca: marcaId,
-                proveedor: proveedorId,
-                mode: 'edit',
-                exito: 'T'
-            }
-        });
+        if (accionMasiva === 'T') {
+            // BOTÓN "APLICAR ESCALAS": Recarga la ventana y muestra el mensaje verde
+            const scriptObj = runtime.getCurrentScript();
+            redirect.toSuitelet({
+                scriptId: scriptObj.id,
+                deploymentId: scriptObj.deploymentId,
+                parameters: {
+                    padreId: padreId,
+                    tipo: tipoId,
+                    marca: marcaId,
+                    proveedor: proveedorId,
+                    mode: 'edit',
+                    exito: 'T'
+                }
+            });
+        } else {
+            // BOTÓN "GUARDAR CAMBIOS": Muestra una pantalla en blanco por un segundo y cierra el popup
+            context.response.write(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Guardando...</title></head>
+                <body style="background-color: #f4f4f4; text-align: center; font-family: Arial, sans-serif; padding-top: 50px;">
+                    <h3>Guardando cambios...</h3>
+                    <script type="text/javascript">
+                        setTimeout(function() {
+                            if (window.opener) {
+                                // Si hay una ventana padre (es un popup), recarga el padre y cierra este popup
+                                window.opener.location.reload(); 
+                                window.close();
+                            } else {
+                                // Si se abrió en pestaña normal
+                                window.close(); 
+                            }
+                        }, 500); // Medio segundo de espera para que sea fluido
+                    </script>
+                </body>
+                </html>
+            `);
+        }
     }
 
     return { onRequest };
