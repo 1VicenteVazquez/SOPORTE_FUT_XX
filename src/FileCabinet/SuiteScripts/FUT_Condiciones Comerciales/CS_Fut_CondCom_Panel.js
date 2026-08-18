@@ -5,6 +5,7 @@
  * CS_Fut_CondCom_Panel.js
  */
 define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog) => {
+    
     // FUNCIONES PARA ABRIR LOS POPUPS DE METAS Y PRECIOS
     function pageInit(context) {
         window.abrirMatrizMetas = abrirMatrizMetas;
@@ -21,6 +22,7 @@ define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog)
         
         window.open(popupUrl, 'PopupMatrizPrecios', 'width=800,height=500,resizable=yes,scrollbars=yes');
     }
+    
     function cancelarEdicion() {
         const rec = currentRecord.get();
         const prov = rec.getValue('custpage_proveedor');
@@ -122,6 +124,7 @@ define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog)
         fieldChanged: fieldChanged,
         cancelarEdicion: cancelarEdicion,
         buscarCondiciones: buscarCondiciones,
-        saveRecord: saveRecord
+        saveRecord: saveRecord,
+        abrirMatrizPrecios: abrirMatrizPrecios // CORRECCIÓN APLICADA AQUÍ
     };
 });
