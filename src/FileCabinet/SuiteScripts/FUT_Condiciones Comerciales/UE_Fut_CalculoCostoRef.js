@@ -22,6 +22,10 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
         const newRecord = scriptContext.newRecord;
         const proveedorId = newRecord.getValue({ fieldId: 'entity' }); 
+        
+        // --- EXTRAEMOS LA SUBSIDIARIA DE LA TRANSACCIÓN ---
+        const subsidiariaTx = newRecord.getValue({ fieldId: 'subsidiary' });
+
         const itemCount = newRecord.getLineCount({ sublistId: 'item' });
         const factorIVA = 1.16; 
 
@@ -85,14 +89,13 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
 
             if (itemId && arribo > 0 && costoFactura > 0) {
-                // Obtenciíon del REFMXP anterior
+                // Obtención del REFMXP anterior (Quitamos quantityonhand de aquí porque es global)
                 let itemFields = search.lookupFields({
                     type: search.Type.ITEM,
                     id: itemId,
-                    columns: ['quantityonhand', 'recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
+                    columns: ['recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
                 });
 
-                let stockActual = parseFloat(itemFields.quantityonhand) || 0;
                 let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
                 
                 let recordType = itemFields.recordtype;
@@ -114,7 +117,29 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 // ----------------------------------------------
 
 
-                // LOGICA CALCULO
+
+                // Obtención de stock actual en la subsidiaria de la transacción
+                let stockActual = 0;
+                if (subsidiariaTx) {
+                    search.create({
+                        type: search.Type.ITEM,
+                        filters: [
+                            ['internalid', 'anyof', itemId],
+                            'AND',
+                            ['inventorylocation.subsidiary', 'anyof', subsidiariaTx]
+                        ],
+                        columns: [
+                            search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })
+                        ]
+                    }).run().each(res => {
+                        stockActual = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
+                        return true;
+                    });
+                }
+                // ========================================================
+
+
+                // Logica para obtener los porcentajes de descuento
                 let pctProntoPago = 0;
                 let pctRebate = 0;
 
@@ -134,12 +159,12 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 }
                 // ========================================================
 
-                // Cálculo Financiero Real (Modo CREATE exclusivo)
+                // Cálculo descuentos y costo neto
                 let descuentoProntoPago = costoFactura * pctProntoPago;
                 let descuentoRebate = costoFactura * pctRebate;
                 let costoNeto = (costoFactura - descuentoProntoPago - descuentoRebate) * factorIVA;
 
-                // --- CAMBIO CLAVE: Promedio usando el Costo Ref Anterior ---
+                // ---Promedio usando el Costo Ref Anterior ---
                 let valorArribo = arribo * costoNeto;
                 let valorStock = stockActual * costoRefAnterior; 
                 let numerador = valorArribo + valorStock;
@@ -149,7 +174,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
                 log.debug({
                     title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
-                    details: `Stock: ${stockActual} | RefAnterior: ${costoRefAnterior} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
+                    details: `Subsidiaria: ${subsidiariaTx} | Stock Aislado: ${stockActual} | RefAnterior: ${costoRefAnterior} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
                 });
 
                 /*newRecord.setSublistValue({
