@@ -60,14 +60,26 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
         if (condicionesIds.length > 0) {
             search.create({
                 type: 'customrecord_fut_meta',
-                filters: [['custrecord_fut_meta_padre', 'anyof', condicionesIds]],
+                filters: [
+                    ['custrecord_fut_meta_padre', 'anyof', condicionesIds],
+                    'AND',
+                    // NUEVO FILTRO: Traer solo las metas activas
+                    ['custrecord_fut_activo_inactivo', 'is', 'T'] 
+                ],
                 columns: ['custrecord_fut_meta_padre', 'custrecord_rin_min', 'custrecord_rin_max', 'custrecord_pct_descuento']
             }).run().each(res => {
                 let padreId = res.getValue('custrecord_fut_meta_padre');
-                let rinMin = parseInt(res.getValue('custrecord_rin_min')) || 0;
-                let rinMax = parseInt(res.getValue('custrecord_rin_max')) || 0;
                 
-                let descString = res.getValue('custrecord_pct_descuento') || '0';
+                // CAMBIO CLAVE: Usar getText() porque ahora son listas (SELECT)
+                let rinMinText = res.getText('custrecord_rin_min') || res.getValue('custrecord_rin_min') || '0';
+                let rinMin = parseInt(rinMinText) || 0;
+                
+                let rinMaxText = res.getText('custrecord_rin_max') || res.getValue('custrecord_rin_max') || '0';
+                let rinMax = parseInt(rinMaxText) || 0;
+                
+                let descString = res.getText('custrecord_pct_descuento') || res.getValue('custrecord_pct_descuento') || '0';
+                
+                // Limpiamos el texto por si trae el símbolo "%" de la lista
                 let descFloat = parseFloat(descString.toString().replace('%', ''));
                 let descDecimal = (descFloat > 1) ? (descFloat / 100) : descFloat;
 
