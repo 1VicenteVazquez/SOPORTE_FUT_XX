@@ -10,7 +10,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const CUSTOM_RECORD_PADRE = 'customrecord_fut_condiciones_comerciales';
     const CUSTOM_RECORD_PRONTO_PAGO = 'customrecord_fut_pronto_pago';
     
+<<<<<<< HEAD
     // AQUÍ VA EL ID DE TU NUEVO CAMPO CHECKBOX DE PRONTO PAGO
+=======
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
     const CAMPO_ACTIVO_PP = 'custrecord_fut_pp_activo'; 
 
     const onRequest = (context) => {
@@ -84,7 +87,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 sublist.setSublistValue({ id: 'custpage_col_tabla', line: i, value: cond.tabla });
                 
                 const txtRebate = isEdit ? 'Editar artículos' : 'Ver artículos';
+<<<<<<< HEAD
                 const txtPP = isEdit ? 'Asignar %' : 'Ver %';
+=======
+                const txtPP = isEdit ? 'Asignar porcentaje' : 'Ver porcentaje';
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
                 if (cond.tabla === 'CC') {
                     sublist.setSublistValue({ id: 'custpage_col_accion', line: i, value: `<a href="javascript:void(0);" onclick="abrirEdicionTipo('${cond.id}', '${cond.tipoId}', '${mode}')" class="dottedlink">${txtRebate}</a>` });
@@ -120,13 +127,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             if (idRegistro) {
                 try {
                     if (tabla === 'CC') {
+<<<<<<< HEAD
                         // Guardado de Rebates
+=======
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                         const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
                         rec.setValue({ fieldId: 'custrecord_cc_activo', value: estaActivo });
                         rec.save({ ignoreMandatoryFields: true });
                     } 
                     else if (tabla === 'PP') {
+<<<<<<< HEAD
                         // NUEVO: Guardado de Pronto Pago usando tu nuevo campo
+=======
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                         const recPP = record.load({ type: CUSTOM_RECORD_PRONTO_PAGO, id: idRegistro });
                         recPP.setValue({ fieldId: CAMPO_ACTIVO_PP, value: estaActivo });
                         recPP.save({ ignoreMandatoryFields: true });
@@ -145,6 +158,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     function obtenerCondicionesCombinadas(proveedorId, marcaId) {
         const lista = [];
 
+<<<<<<< HEAD
+=======
+        // 1. REBATES
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
         search.create({
             type: CUSTOM_RECORD_PADRE,
             filters: [['custrecord_cc_proveedor', 'anyof', proveedorId], 'AND', ['custrecord_fut_cc_marca', 'anyof', marcaId]],
@@ -159,7 +176,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             return true;
         });
 
+<<<<<<< HEAD
         // NUEVO: Agregamos tu campo CAMPO_ACTIVO_PP a la búsqueda
+=======
+        // 2. PRONTO PAGO
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
         search.create({
             type: CUSTOM_RECORD_PRONTO_PAGO,
             filters: [['custrecord_fut_pp_proveedor', 'anyof', proveedorId], 'AND', ['custrecord_fut_pp_marca', 'anyof', marcaId]],

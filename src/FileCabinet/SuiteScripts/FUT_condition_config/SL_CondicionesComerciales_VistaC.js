@@ -19,7 +19,11 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
         const registroId = params.registroId;
         const isEdit = (params.mode === 'edit');
 
+<<<<<<< HEAD
         // ¡AQUÍ TAMBIÉN! hideNavBar: true
+=======
+        // hideNavBar: true
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
         const form = serverWidget.createForm({ 
             title: isEdit ? 'Configurar Pronto Pago' : 'Pronto Pago',
             hideNavBar: true
@@ -31,13 +35,37 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
         form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
 
+<<<<<<< HEAD
         const fldPorcentaje = form.addField({ id: 'custpage_porcentaje', type: serverWidget.FieldType.PERCENT, label: 'Porcentaje de Pronto Pago (%)' });
+=======
+        // 1. Lista desplegable
+        const fldPorcentaje = form.addField({ id: 'custpage_porcentaje', type: serverWidget.FieldType.SELECT, label: 'Porcentaje de Pronto Pago (%)' });
+        fldPorcentaje.addSelectOption({ value: '', text: '- N/A -' });
+        
+        // 2. CICLO PARA AGREGAR VALORES DEL 0.1 AL 10.0
+        for (let i = 1; i <= 100; i++) {
+            let val = i / 10;
+            // value='1.5', text='1.5%'
+            fldPorcentaje.addSelectOption({ value: val.toString(), text: val.toFixed(1) + '%' });
+        }
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
         if (registroId) {
             try {
                 const recPP = record.load({ type: CUSTOM_RECORD_PRONTO_PAGO, id: registroId });
                 const valActual = recPP.getValue('custrecord_fut_pp_porcentaje');
+<<<<<<< HEAD
                 if (valActual) fldPorcentaje.defaultValue = valActual;
+=======
+                
+                // 3. MAPEAR EL VALOR PARA QUE EMPATE CON LAS OPCIONES DEL SELECT
+                if (valActual !== null && valActual !== '') {
+                    let valorParaSelect = parseFloat(valActual).toString();
+                    if (!isNaN(valorParaSelect)) {
+                        fldPorcentaje.defaultValue = valorParaSelect;
+                    }
+                }
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
             } catch (e) { log.error('Error cargando PP', e.message); }
         }
 
@@ -61,6 +89,10 @@ define(['N/ui/serverWidget', 'N/record', 'N/log'], (serverWidget, record, log) =
         if (registroId && porcentaje) {
             try {
                 const recPP = record.load({ type: CUSTOM_RECORD_PRONTO_PAGO, id: registroId });
+<<<<<<< HEAD
+=======
+                // El value del select ya viaja como número válido ('1.5'), solo lo parseamos
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                 recPP.setValue({ fieldId: 'custrecord_fut_pp_porcentaje', value: parseFloat(porcentaje) });
                 recPP.save({ ignoreMandatoryFields: true });
             } catch (e) { log.error('Error guardando PP', e.message); }

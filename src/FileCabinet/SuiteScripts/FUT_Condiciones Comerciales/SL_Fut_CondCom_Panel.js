@@ -20,6 +20,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const FIELD_NOMBRE = 'custrecord_condcom_nombre';
     const FIELD_ACTIVO = 'custrecord_condcom_activo';
     const FIELD_PRONTO_PAGO = 'custrecord_condcom_pronto_pago';
+<<<<<<< HEAD
+=======
+    const FIELD_PRECIO_ESP = 'custrecord_fut_condcom_precio_especial';
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -104,10 +108,43 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldCondicion.updateDisplayType({ displayType: displayModo });
         if (isEdit) fldCondicion.isMandatory = true; 
         
+<<<<<<< HEAD
         sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
         
         const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
         if (isEdit) colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+=======
+        // sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
+
+        sublist.addField({ 
+            id: 'custpage_col_pp', 
+            type: serverWidget.FieldType.SELECT, 
+            label: 'Pronto Pago (%)', 
+            source: 'customlist_fut_lista_porcentajes_descu' 
+        }).updateDisplayType({ displayType: displayModo });
+
+
+        sublist.addField({ id: 'custpage_col_precio_esp', type: serverWidget.FieldType.FLOAT, label: 'Precio Especial' }).updateDisplayType({ displayType: displayModo });
+        
+
+
+// AJUSTE PARA OCUALTAR CONDICIONES POR FILTRO PROVEEDOR 
+        // const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
+        // if (isEdit) colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // Define el ID de tu proveedor especial (¡Cambia el '123' por el Internal ID real de JK TORNEL!)
+        const ID_JK_TORNEL = '1978'; 
+
+        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
+        
+        if (proveedorId === ID_JK_TORNEL) {
+            // Si es JK Tornel, escondemos la columna por completo
+            colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        } else if (isEdit) {
+            // Si es cualquier otro proveedor en modo edición, la mostramos normal
+            colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        }
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
         if (proveedorId && marcaId) {
             let lineIndex = 0;
@@ -120,7 +157,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: CUSTOM_RECORD_PADRE,
                 filters: [[FIELD_PROVEEDOR, 'anyof', proveedorId], 'AND', [FIELD_MARCA, 'anyof', marcaId]],
+<<<<<<< HEAD
                 columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
+=======
+                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PRECIO_ESP, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
             }).run().each(res => {
                 
                 const idRegistro = res.id;
@@ -138,6 +179,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 const estaActivo = res.getValue(FIELD_ACTIVO);
                 const nombre = res.getValue(FIELD_NOMBRE) || res.getText(FIELD_NOMBRE) || 'Sin Nombre';
                 const prontoPago = res.getValue(FIELD_PRONTO_PAGO);
+<<<<<<< HEAD
+=======
+                const precioEspecial = res.getValue(FIELD_PRECIO_ESP);
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
                 sublist.setSublistValue({ id: 'custpage_col_id', line: lineIndex, value: idRegistro });
                 sublist.setSublistValue({ id: 'custpage_col_prov_txt', line: lineIndex, value: provTxt });
@@ -152,6 +197,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 if (prontoPago !== null && prontoPago !== '') {
                     sublist.setSublistValue({ id: 'custpage_col_pp', line: lineIndex, value: prontoPago });
                 }
+<<<<<<< HEAD
                 
                 const txtLink = isEdit ? 'Configurar Metas' : 'Ver Metas';
                 sublist.setSublistValue({ 
@@ -159,6 +205,31 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     line: lineIndex, 
                     value: `<a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold;">${txtLink}</a>` 
                 });
+=======
+
+                if (precioEspecial !== null && precioEspecial !== '') {
+                    sublist.setSublistValue({ id: 'custpage_col_precio_esp', line: lineIndex, value: precioEspecial });
+                }
+                
+// AJUSTE PARA Evitar inyectar los botones de "Ver Metas"
+                // const txtLink = isEdit ? 'Configurar Metas' : 'Ver Metas';
+                // sublist.setSublistValue({ 
+                //     id: 'custpage_col_accion', 
+                //     line: lineIndex, 
+                //     value: `<a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold;">${txtLink}</a>` 
+                // });
+                
+
+                // Solo inyectamos los links si NO es el proveedor JK Tornel
+                if (proveedorId !== ID_JK_TORNEL) {
+                    const txtLink = isEdit ? 'Configurar Metas' : 'Ver Metas';
+                    sublist.setSublistValue({ 
+                        id: 'custpage_col_accion', 
+                        line: lineIndex, 
+                        value: `<a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold;">${txtLink}</a>` 
+                    });
+                }
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                 
                 lineIndex++;
                 return true;
@@ -202,6 +273,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             const estaActivo = (req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_activo', line: i }) === 'T');
             const nombreCond = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_condicion', line: i });
             const prontoPago = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_pp', line: i });
+<<<<<<< HEAD
+=======
+            const precioEspecial = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_precio_esp', line: i });
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
             if (idRegistro) {
                 idsEnviados.push(String(idRegistro).trim());
@@ -209,7 +284,14 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
                     rec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
                     if (nombreCond) rec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
+<<<<<<< HEAD
                     rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+=======
+                    // rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // Guardamos el ID de la lista. Si viene vacío, guardamos null.
+                    rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
+                    rec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                     rec.save({ ignoreMandatoryFields: true });
                 } catch (e) { 
                     log.error(`Error actualizando Cabecera ID ${idRegistro}`, e.message); 
@@ -221,7 +303,14 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRec.setValue({ fieldId: FIELD_MARCA, value: marcaId });
                     nuevoRec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
                     nuevoRec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
+<<<<<<< HEAD
                     nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+=======
+                    // nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // Lo mismo para los registros nuevos
+                    nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
+                    nuevoRec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                     nuevoRec.save({ ignoreMandatoryFields: true });
                 } catch (e) {
                     log.error('Error creando nueva Cabecera', e.message);

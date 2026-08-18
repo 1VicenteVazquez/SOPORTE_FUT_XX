@@ -1,36 +1,3 @@
-<!-- <deploy>
-    <configuration>
-        <path>~/AccountConfiguration/*</path>
-    </configuration>
-    <files>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/cs_recepciones_masivas_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/SC_MassReceivePO.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js</path>
-    </files>
-</deploy> 
- -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <deploy>
     <configuration>
@@ -38,6 +5,7 @@
     </configuration>
     <files>
 
+<<<<<<< HEAD
         <!-- <path>~/FileCabinet/SuiteScripts/FUT_condition_config/UE_ItemReceipt_CostoREFMXP.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaB.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_condition_config/MR_CondicionesComerciales_Actualizar.js</path>
@@ -48,77 +16,11 @@
 
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path>
+=======
+        <!-- <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path> -->
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
+>>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
     </files>
-</deploy>   
-
-
-
-<!-- 
-<deploy>
-    <configuration>
-        <path>~/AccountConfiguration/*</path>
-    </configuration>
-    <files>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/cs_recepciones_masivas_po.js</path>
-    </files>
-</deploy>   
-
-
-
- -->
-
-
-
-
-
-
-<!-- <deploy>
-    <configuration>
-        <path>~/AccountConfiguration/*</path>
-    </configuration>
-    <files>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/cs_MR_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/mr_MR_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/ss_MR_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v2/ss_recepciones_masivas_po.js</path>
-    </files>
-    <objects>
-        <path>~/Objects/customscript_aprobaciones_masivas_po_2.xml</path>
-    </objects>
-</deploy>  -->
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<!-- 
-
-
-
-<deploy>
-    <configuration>
-        <path>~/AccountConfiguration/*</path>
-    </configuration>
-    <files>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/cs_MR_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/mr_MR_po.js</path>
-        <path>~/FileCabinet/SuiteScripts/Recepciones Masivas/v3/ss_MR_po.js</path>
-    </files>
-</deploy> -->
+</deploy>  
