@@ -1,50 +1,38 @@
 /**
  * @NApiVersion 2.1
  * @NScriptType MapReduceScript
- * @NModuleScope SameAccount
  *
  * MR_CondicionesComerciales_Actualizar.js
- *
- * Recibe el JSON de cambios enviado desde SL_CondicionesComerciales_VistaB
- * y crea o actualiza los registros customrecord_fut_condiciones_comerciales
- * correspondientes.
- *
- * Parámetros de script (crear como Script Parameters en el registro del
- * Map/Reduce, tipo Free-Form Text / Long Text):
- *   custscript_mr_cc_proveedor -> internal id del Proveedor
- *   custscript_mr_cc_marca     -> internal id de la Marca
- *   custscript_mr_cc_cambios   -> JSON.stringify([{ id, item, activo, prontoPago, rebate, crecimiento }, ...])
  */
 define(['N/record', 'N/runtime', 'N/log'], (record, runtime, log) => {
 
-    const CUSTOM_RECORD_ID = 'customrecord_fut_condiciones_comerciales';
+    const CUSTOM_RECORD_HIJO = 'customrecord_fut_condicion_detalle';
 
-    const FIELD = {
-        PROVEEDOR: 'custrecord_cc_proveedor',
-        MARCA: 'custrecord_cc_marca',
-        ARTICULO: 'custrecord_cc_articulo',
-        ACTIVO: 'custrecord_cc_activo',
-        PRONTO_PAGO: 'custrecord_cc_pronto_pago',
-        REBATE: 'custrecord_cc_rebate',
-        CRECIMIENTO: 'custrecord_cc_crecimiento'
+    const FIELD_HIJO = {
+        PADRE: 'custrecord_fut_condicion_individual',
+        TIPO_CONDICION: 'custrecord_fut_tipo_condicion',
+        ARTICULO: 'custrecord_fut_articulo',
+        ACTIVO: 'custrecord_fut_activo',
+        PORCENTAJE: 'custrecord_fut_porcentaje',
+        DESCRIPCION: 'custrecord_fut_descripcion'
     };
 
     const getInputData = () => {
         const script = runtime.getCurrentScript();
-        const proveedorId = script.getParameter({ name: 'custscript_mr_cc_proveedor' });
-        const marcaId = script.getParameter({ name: 'custscript_mr_cc_marca' });
+        const padreId = script.getParameter({ name: 'custscript_mr_cc_padre_id' });
+        const tipoCondicionId = script.getParameter({ name: 'custscript_mr_cc_tipo_id' });
         const cambiosRaw = script.getParameter({ name: 'custscript_mr_cc_cambios' });
 
-        let cambios = [];
-        try {
-            cambios = cambiosRaw ? JSON.parse(cambiosRaw) : [];
-        } catch (e) {
-            log.error('Error parseando parámetro de cambios', e.message);
-        }
+        log.debug('MR getInputData - parámetros recibidos', `padreId: ${padreId} | cambiosRaw length: ${cambiosRaw ? cambiosRaw.length : 0}`);
 
-        // Se agrega proveedorId/marcaId a cada línea para poder crear
-        // registros nuevos en la fase map sin depender de estado global.
-        return cambios.map((c) => Object.assign({}, c, { proveedorId, marcaId }));
+        let cambios = [];
+        try { cambios = cambiosRaw ? JSON.parse(cambiosRaw) : []; } catch (e) { }
+        
+        const cambiosConContexto = cambios.map(c => Object.assign({}, c, { padreId, tipoCondicionId }));
+        
+        log.audit('MR getInputData - registros que se van a procesar en map()', cambiosConContexto.length);
+        
+        return cambiosConContexto;
     };
 
     const map = (context) => {
@@ -52,41 +40,34 @@ define(['N/record', 'N/runtime', 'N/log'], (record, runtime, log) => {
 
         try {
             if (cambio.id) {
-                // Actualizar registro existente
-                record.submitFields({
-                    type: CUSTOM_RECORD_ID,
-                    id: cambio.id,
-                    values: {
-                        [FIELD.ACTIVO]: cambio.activo,
-                        [FIELD.PRONTO_PAGO]: cambio.prontoPago,
-                        [FIELD.REBATE]: cambio.rebate,
-                        [FIELD.CRECIMIENTO]: cambio.crecimiento
-                    },
-                    options: { enableSourcing: false, ignoreMandatoryFields: true }
-                });
-
+                // SOLUCIÓN AL CHECKBOX: Usar load() en lugar de submitFields()
+                log.debug('MR map - ACTUALIZANDO registro existente', `id: ${cambio.id} | item: ${cambio.item} | Activo: ${cambio.activo}`);
+                
+                const recEdit = record.load({ type: CUSTOM_RECORD_HIJO, id: cambio.id });
+                recEdit.setValue({ fieldId: FIELD_HIJO.ACTIVO, value: cambio.activo });
+                recEdit.setValue({ fieldId: FIELD_HIJO.PORCENTAJE, value: cambio.porcentaje });
+                recEdit.setValue({ fieldId: FIELD_HIJO.DESCRIPCION, value: cambio.descripcion });
+                recEdit.save({ ignoreMandatoryFields: true });
+                
                 context.write({ key: String(cambio.id), value: 'updated' });
             } else {
-                // Crear nuevo registro
-                const nuevoRegistro = record.create({ type: CUSTOM_RECORD_ID, isDynamic: true });
+                // Crear nuevo
+                log.debug('MR map - CREANDO registro nuevo', `item: ${cambio.item} | Activo: ${cambio.activo}`);
+                
+                const recHijo = record.create({ type: CUSTOM_RECORD_HIJO });
+                recHijo.setValue({ fieldId: 'name', value: `Detalle Condición - Art ${cambio.item}` }); 
+                recHijo.setValue({ fieldId: FIELD_HIJO.PADRE, value: cambio.padreId });
+                recHijo.setValue({ fieldId: FIELD_HIJO.TIPO_CONDICION, value: cambio.tipoCondicionId });
+                recHijo.setValue({ fieldId: FIELD_HIJO.ARTICULO, value: cambio.item });
+                recHijo.setValue({ fieldId: FIELD_HIJO.ACTIVO, value: cambio.activo });
+                recHijo.setValue({ fieldId: FIELD_HIJO.PORCENTAJE, value: cambio.porcentaje });
+                recHijo.setValue({ fieldId: FIELD_HIJO.DESCRIPCION, value: cambio.descripcion });
 
-                nuevoRegistro.setValue({ fieldId: FIELD.PROVEEDOR, value: cambio.proveedorId });
-                nuevoRegistro.setValue({ fieldId: FIELD.MARCA, value: cambio.marcaId });
-                nuevoRegistro.setValue({ fieldId: FIELD.ARTICULO, value: cambio.item });
-                nuevoRegistro.setValue({ fieldId: FIELD.ACTIVO, value: cambio.activo });
-                nuevoRegistro.setValue({ fieldId: FIELD.PRONTO_PAGO, value: cambio.prontoPago });
-                nuevoRegistro.setValue({ fieldId: FIELD.REBATE, value: cambio.rebate });
-                nuevoRegistro.setValue({ fieldId: FIELD.CRECIMIENTO, value: cambio.crecimiento });
-
-                const newId = nuevoRegistro.save();
-
+                const newId = recHijo.save();
                 context.write({ key: String(newId), value: 'created' });
             }
         } catch (e) {
-            log.error({
-                title: `Error procesando cambio - Artículo ${cambio.item}`,
-                details: e.message
-            });
+            log.error({ title: `MR map - Error en item ${cambio.item}`, details: e.message });
         }
     };
 
@@ -103,13 +84,13 @@ define(['N/record', 'N/runtime', 'N/log'], (record, runtime, log) => {
 
         summary.mapSummary.errors.iterator().each((key, error) => {
             errores++;
-            log.error({ title: `Error en fase Map - registro ${key}`, details: error });
+            log.error({ title: `MR summarize - Error en fase Map - registro ${key}`, details: error });
             return true;
         });
 
         log.audit({
-            title: 'Resumen Map/Reduce Condiciones Comerciales',
-            details: `Creados: ${creados} | Actualizados: ${actualizados} | Errores: ${errores}`
+            title: 'MR summarize - Resumen Map/Reduce Condiciones Comerciales',
+            details: `Creados: ${creados} | Actualizados: ${actualizados} | Errores: ${errores} | Usage consumido: ${summary.mapSummary.usage} | Tiempo total: ${summary.seconds}s`
         });
     };
 

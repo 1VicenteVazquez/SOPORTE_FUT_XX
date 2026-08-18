@@ -12,7 +12,8 @@
  * Los porcentajes (Pronto Pago, Rebate, Crecimiento Extraordinario) ya NO
  * están hardcodeados: se buscan dinámicamente en el Custom Record
  * "Condiciones Comerciales" (customrecord_fut_condiciones_comerciales),
- * filtrando por Proveedor + Artículo + Activo = true.
+ * filtrando por Proveedor + Artículo + Activo = true. 
+ * 
  */
 define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
