@@ -31,6 +31,9 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
         if (!proveedorId || itemCount === 0) return;
 
+        // --- LOG: INICIO DE PROCESO ---
+        log.debug('Inicio de Calculo', `Proveedor: ${proveedorId} | Lineas: ${itemCount} | Subsidiaria: ${subsidiariaTx}`);
+
         // 1. CARGAMOS EN CACHÉ TODAS LAS CONDICIONES ACTIVAS
         const condicionesCache = {}; 
         
@@ -51,6 +54,10 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let ppDecimal = (ppFloat > 1) ? (ppFloat / 100) : ppFloat; 
 
             condicionesCache[marcaId] = { id: condId, pp: ppDecimal, metas: [] };
+            
+            // --- LOG: CONDICIÓN CARGADA ---
+            log.debug('Caché Condición Activa Agregada', `MarcaID: ${marcaId} | CondID: ${condId} | Pct Pronto Pago (Decimal): ${ppDecimal}`);
+            
             return true;
         });
 
@@ -86,6 +93,10 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 for (let marcaId in condicionesCache) {
                     if (condicionesCache[marcaId].id === padreId) {
                         condicionesCache[marcaId].metas.push({ min: rinMin, max: rinMax, descuento: descDecimal });
+                        
+                        // --- LOG: META CARGADA ---
+                        log.debug('Caché Meta Agregada', `A CondID Padre: ${padreId} | Rin Min: ${rinMin} | Rin Max: ${rinMax} | Pct Rebate (Decimal): ${descDecimal}`);
+                        
                         break;
                     }
                 }
@@ -99,6 +110,9 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
             let arribo = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
             let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
+
+            // --- LOG: INICIO DE LÍNEA ---
+            log.debug(`--- INICIANDO LÍNEA ${i} ---`, `ItemID: ${itemId} | Cantidad Arribo: ${arribo} | Costo Factura: ${costoFactura}`);
 
             if (itemId && arribo > 0 && costoFactura > 0) {
                 // Obtención del REFMXP anterior (Quitamos quantityonhand de aquí porque es global)
@@ -128,7 +142,8 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 let rinArticulo = parseInt(rinRaw) || 0;
                 // ----------------------------------------------
 
-
+                // --- LOG: DATOS DEL ARTÍCULO ---
+                log.debug(`Paso 1: Datos Artículo (Línea ${i})`, `MarcaID: ${marcaArticulo} | Rin: ${rinArticulo} | Costo Ref Anterior: ${costoRefAnterior}`);
 
                 // Obtención de stock actual en la subsidiaria de la transacción
                 let stockActual = 0;
@@ -150,6 +165,8 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 }
                 // ========================================================
 
+                // --- LOG: STOCK ACTUAL ---
+                log.debug(`Paso 2: Stock (Línea ${i})`, `Stock actual en Subsidiaria ${subsidiariaTx}: ${stockActual}`);
 
                 // Logica para obtener los porcentajes de descuento
                 let pctProntoPago = 0;
@@ -171,10 +188,16 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 }
                 // ========================================================
 
+                // --- LOG: PORCENTAJES ENCONTRADOS ---
+                log.debug(`Paso 3: Porcentajes Aplicables (Línea ${i})`, `Pronto Pago (Dec): ${pctProntoPago} | Rebate Meta (Dec): ${pctRebate}`);
+
                 // Cálculo descuentos y costo neto
                 let descuentoProntoPago = costoFactura * pctProntoPago;
                 let descuentoRebate = costoFactura * pctRebate;
                 let costoNeto = (costoFactura - descuentoProntoPago - descuentoRebate) * factorIVA;
+
+                // --- LOG: CÁLCULO DE COSTO NETO ---
+                log.debug(`Paso 4: Cálculo Costo Neto (Línea ${i})`, `Descuento PP ($): ${descuentoProntoPago} | Descuento Rebate ($): ${descuentoRebate} | Base c/Descuentos: ${costoFactura - descuentoProntoPago - descuentoRebate} | Costo Neto (+IVA): ${costoNeto}`);
 
                 // ---Promedio usando el Costo Ref Anterior ---
                 let valorArribo = arribo * costoNeto;
@@ -184,8 +207,11 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
                 let costoRef = (denominador > 0) ? (numerador / denominador) : 0;
 
+                // --- LOG: CÁLCULO PROMEDIO PONDERADO ---
+                log.debug(`Paso 5: Promedio Ponderado (Línea ${i})`, `Valor Arribo ($): ${valorArribo} | Valor Stock Anterior ($): ${valorStock} | Numerador (Suma $): ${numerador} | Denominador (Piezas Totales): ${denominador} | COSTO REF NUEVO: ${costoRef}`);
+
                 log.debug({
-                    title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
+                    title: `Resumen Final - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
                     details: `Subsidiaria: ${subsidiariaTx} | Stock Aislado: ${stockActual} | RefAnterior: ${costoRefAnterior} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
                 });
 
@@ -204,6 +230,9 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                             values: { [FLD_ITEM_REFMXP]: costoRef },
                             options: { enableSourcing: false, ignoreMandatoryFields: true }
                         });
+                        
+                        // --- LOG: CONFIRMACIÓN DE GUARDADO ---
+                        log.debug(`Éxito Línea ${i}`, `Se actualizó el campo ${FLD_ITEM_REFMXP} en el artículo ${itemId} con el valor ${costoRef}`);
                     } catch (e) {
                         log.error(`Error actualizando el Artículo ${itemId}`, e.message);
                     }
