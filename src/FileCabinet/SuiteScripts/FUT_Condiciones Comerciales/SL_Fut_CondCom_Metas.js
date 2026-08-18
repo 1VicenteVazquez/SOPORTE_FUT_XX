@@ -15,6 +15,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const FLD_META_PCT = 'custrecord_meta_pct';
     const FLD_OBJETIVO = 'custrecord_cantidad_objetivo';
     const FLD_DESCUENTO = 'custrecord_pct_descuento';
+    const FLD_ACTIVO = 'custrecord_fut_activo_inactivo';
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -54,6 +55,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Segmento de Rin' });
         
+        const fldActivo = sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
+        fldActivo.updateDisplayType({ displayType: displayModo });
+
         const fldNombre = sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Segmento' });
         fldNombre.updateDisplayType({ displayType: displayModo });
         
@@ -107,9 +111,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 type: RECORD_META,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
                 // CAMBIO CLAVE: Buscamos el campo personalizado en lugar de 'name'
-                columns: [FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
+                columns: [FLD_ACTIVO,FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
             }).run().each(res => {
-                // CAMBIO CLAVE: Extraemos el valor del campo personalizado
+                // Extraemos y pintamos el checkbox ---
+                let estaActivo = res.getValue(FLD_ACTIVO);
+                sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
+
+                // Extraemos el valor del campo personalizado
                 let nombre = res.getValue(FLD_NOMBRE_ESCALA);
                 if (nombre) sublist.setSublistValue({ id: 'custpage_col_nombre', line: line, value: nombre });
 
@@ -166,6 +174,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                 const lineCount = req.getLineCount({ group: 'custpage_sublist_metas' });
                 for (let i = 0; i < lineCount; i++) {
+                    const activoVal = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_activo', line: i });
+                    const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
                     const nombreMeta = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_nombre', line: i });
                     const rinMin = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_rin_min', line: i });
                     const rinMax = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_rin_max', line: i });
@@ -175,6 +185,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                     const nuevoRegistro = record.create({ type: RECORD_META });
                     nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
+
+                    //Guardamos el check ---
+                    nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
                     
                     // CAMBIO CLAVE: Guardamos en el campo personalizado
                     if(nombreMeta) nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: nombreMeta });
