@@ -7,6 +7,7 @@
 
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
 
     </files>
 </deploy>   
