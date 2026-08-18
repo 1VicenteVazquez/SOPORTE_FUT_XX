@@ -15,10 +15,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const FLD_META_PCT = 'custrecord_meta_pct';
     const FLD_OBJETIVO = 'custrecord_cantidad_objetivo';
     const FLD_DESCUENTO = 'custrecord_pct_descuento';
-<<<<<<< HEAD
-=======
     const FLD_ACTIVO = 'custrecord_fut_activo_inactivo';
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -58,17 +55,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Segmento de Rin' });
         
-<<<<<<< HEAD
-        const fldNombre = sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Segmento' });
-        fldNombre.updateDisplayType({ displayType: displayModo });
-        
-        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' });
-        fldRinMin.updateDisplayType({ displayType: displayModo });
-        
-        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' });
-        fldRinMax.updateDisplayType({ displayType: displayModo });
-        
-=======
+
         const fldActivo = sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
         fldActivo.updateDisplayType({ displayType: displayModo });
 
@@ -90,18 +77,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldRinMax.updateDisplayType({ displayType: displayModo });
 
 
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
         const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.PERCENT, label: 'Meta a Alcanzar (%)' });
         fldMeta.updateDisplayType({ displayType: displayModo });
         
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
         fldObj.updateDisplayType({ displayType: displayModo });
         
-<<<<<<< HEAD
-        const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
-        fldDesc.updateDisplayType({ displayType: displayModo });
 
-=======
         // const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
         // fldDesc.updateDisplayType({ displayType: displayModo });
 
@@ -115,8 +97,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         });
         fldDesc.updateDisplayType({ displayType: displayModo });
 
-
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
         if (isEdit) {
             fldNombre.isMandatory = true;
             fldRinMin.isMandatory = true;
@@ -132,11 +112,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 type: RECORD_META,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
                 // CAMBIO CLAVE: Buscamos el campo personalizado en lugar de 'name'
-<<<<<<< HEAD
-                columns: [FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
-            }).run().each(res => {
-                // CAMBIO CLAVE: Extraemos el valor del campo personalizado
-=======
                 columns: [FLD_ACTIVO,FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
             }).run().each(res => {
                 // Extraemos y pintamos el checkbox ---
@@ -144,7 +119,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
 
                 // Extraemos el valor del campo personalizado
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                 let nombre = res.getValue(FLD_NOMBRE_ESCALA);
                 if (nombre) sublist.setSublistValue({ id: 'custpage_col_nombre', line: line, value: nombre });
 
@@ -201,11 +175,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                 const lineCount = req.getLineCount({ group: 'custpage_sublist_metas' });
                 for (let i = 0; i < lineCount; i++) {
-<<<<<<< HEAD
-=======
+
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                     const nombreMeta = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_nombre', line: i });
                     const rinMin = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_rin_min', line: i });
                     const rinMax = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_rin_max', line: i });
@@ -215,12 +187,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                     const nuevoRegistro = record.create({ type: RECORD_META });
                     nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
-<<<<<<< HEAD
-=======
 
                     //Guardamos el check ---
                     nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                     
                     // CAMBIO CLAVE: Guardamos en el campo personalizado
                     if(nombreMeta) nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: nombreMeta });
@@ -229,13 +198,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     if(rinMax) nuevoRegistro.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
                     if(metaPct) nuevoRegistro.setValue({ fieldId: FLD_META_PCT, value: parseFloat(metaPct) });
                     if(objetivo) nuevoRegistro.setValue({ fieldId: FLD_OBJETIVO, value: objetivo });
-<<<<<<< HEAD
-                    if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: parseFloat(descuento) });
-=======
                     // if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: parseFloat(descuento) });
                     // Guardamos directamente el Internal ID de la lista seleccionada
                     if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: descuento });
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
                     
                     nuevoRegistro.save({ ignoreMandatoryFields: true });
                 }
