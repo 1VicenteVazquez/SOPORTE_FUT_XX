@@ -5,11 +5,22 @@
  * CS_Fut_CondCom_Panel.js
  */
 define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog) => {
-
+    // FUNCIONES PARA ABRIR LOS POPUPS DE METAS Y PRECIOS
     function pageInit(context) {
         window.abrirMatrizMetas = abrirMatrizMetas;
+        window.abrirMatrizPrecios = abrirMatrizPrecios; 
     }
 
+    // FUNCION PARA ABRIR EL POPUP DE MATRIZ DE PRECIOS
+    function abrirMatrizPrecios(registroId, modo) {
+        const popupUrl = url.resolveScript({
+            scriptId: 'customscript_fut_sl_condcom_precios',
+            deploymentId: 'customdeploy_fut_sl_condcom_precios', 
+            params: { registroId: registroId, mode: modo, hideNavBar: 'T' }
+        });
+        
+        window.open(popupUrl, 'PopupMatrizPrecios', 'width=800,height=500,resizable=yes,scrollbars=yes');
+    }
     function cancelarEdicion() {
         const rec = currentRecord.get();
         const prov = rec.getValue('custpage_proveedor');
