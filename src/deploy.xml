@@ -4,23 +4,12 @@
         <path>~/AccountConfiguration/*</path>
     </configuration>
     <files>
-
-<<<<<<< HEAD
-        <!-- <path>~/FileCabinet/SuiteScripts/FUT_condition_config/UE_ItemReceipt_CostoREFMXP.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaB.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/MR_CondicionesComerciales_Actualizar.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaB.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/CS_CondicionesComerciales_VistaA.js</path> 
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaA.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_condition_config/SL_CondicionesComerciales_VistaA.js</path>-->
-
+<!-- 
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
         <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path>
-=======
-        <!-- <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
-        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path> -->
-        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
->>>>>>> fdfb88114537db9c577dedead9a9284142c75d1a
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path> -->
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/UE_Fut_CalculoCostoRef.js</path>
 
     </files>
 </deploy>  
