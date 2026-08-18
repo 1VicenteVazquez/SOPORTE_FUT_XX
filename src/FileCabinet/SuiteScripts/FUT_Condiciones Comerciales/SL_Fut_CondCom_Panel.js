@@ -105,7 +105,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldCondicion.updateDisplayType({ displayType: displayModo });
         if (isEdit) fldCondicion.isMandatory = true; 
         
-        sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
+        // sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
+
+        sublist.addField({ 
+            id: 'custpage_col_pp', 
+            type: serverWidget.FieldType.SELECT, 
+            label: 'Pronto Pago (%)', 
+            source: 'customlist_fut_lista_porcentajes_descu' 
+        }).updateDisplayType({ displayType: displayModo });
+
 
         sublist.addField({ id: 'custpage_col_precio_esp', type: serverWidget.FieldType.FLOAT, label: 'Precio Especial' }).updateDisplayType({ displayType: displayModo });
         
@@ -246,7 +254,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
                     rec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
                     if (nombreCond) rec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
-                    rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // Guardamos el ID de la lista. Si viene vacío, guardamos null.
+                    rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
                     rec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
                     rec.save({ ignoreMandatoryFields: true });
                 } catch (e) { 
@@ -259,7 +269,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRec.setValue({ fieldId: FIELD_MARCA, value: marcaId });
                     nuevoRec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
                     nuevoRec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
-                    nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
+                    // Lo mismo para los registros nuevos
+                    nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
                     nuevoRec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
                     nuevoRec.save({ ignoreMandatoryFields: true });
                 } catch (e) {

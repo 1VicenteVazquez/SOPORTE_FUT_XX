@@ -57,20 +57,40 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldNombre = sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Segmento' });
         fldNombre.updateDisplayType({ displayType: displayModo });
         
-        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' });
+        // const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' });
+        // fldRinMin.updateDisplayType({ displayType: displayModo });
+        
+        // const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' });
+        // fldRinMax.updateDisplayType({ displayType: displayModo });
+        
+
+        // Cambiamos el tipo a SELECT y le agregamos el 'source' hacia tu lista personalizada
+        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo', source: 'customlist_nso_list_diametro_rin' });
         fldRinMin.updateDisplayType({ displayType: displayModo });
         
-        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' });
+        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo', source: 'customlist_nso_list_diametro_rin' });
         fldRinMax.updateDisplayType({ displayType: displayModo });
-        
+
+
         const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.PERCENT, label: 'Meta a Alcanzar (%)' });
         fldMeta.updateDisplayType({ displayType: displayModo });
         
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
         fldObj.updateDisplayType({ displayType: displayModo });
         
-        const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
+        // const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
+        // fldDesc.updateDisplayType({ displayType: displayModo });
+
+
+        // Cambiamos el tipo a SELECT y enlazamos la lista personalizada
+        const fldDesc = sublist.addField({ 
+            id: 'custpage_col_descuento', 
+            type: serverWidget.FieldType.SELECT, 
+            label: 'Descuento (%)', 
+            source: 'customlist_fut_lista_porcentajes_descu' 
+        });
         fldDesc.updateDisplayType({ displayType: displayModo });
+
 
         if (isEdit) {
             fldNombre.isMandatory = true;
@@ -163,7 +183,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     if(rinMax) nuevoRegistro.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
                     if(metaPct) nuevoRegistro.setValue({ fieldId: FLD_META_PCT, value: parseFloat(metaPct) });
                     if(objetivo) nuevoRegistro.setValue({ fieldId: FLD_OBJETIVO, value: objetivo });
-                    if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: parseFloat(descuento) });
+                    // if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: parseFloat(descuento) });
+                    // Guardamos directamente el Internal ID de la lista seleccionada
+                    if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: descuento });
                     
                     nuevoRegistro.save({ ignoreMandatoryFields: true });
                 }
