@@ -31,9 +31,6 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
         if (!proveedorId || itemCount === 0) return;
 
-        // --- LOG: INICIO DE PROCESO ---
-        log.debug('Inicio de Calculo', `Proveedor: ${proveedorId} | Lineas: ${itemCount} | Subsidiaria: ${subsidiariaTx}`);
-
         // 1. CARGAMOS EN CACHÉ TODAS LAS CONDICIONES ACTIVAS
         const condicionesCache = {}; 
         
@@ -54,49 +51,61 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let ppDecimal = (ppFloat > 1) ? (ppFloat / 100) : ppFloat; 
 
             condicionesCache[marcaId] = { id: condId, pp: ppDecimal, metas: [] };
-            
-            // --- LOG: CONDICIÓN CARGADA ---
-            log.debug('Caché Condición Activa Agregada', `MarcaID: ${marcaId} | CondID: ${condId} | Pct Pronto Pago (Decimal): ${ppDecimal}`);
-            
             return true;
         });
 
-        // 2. CARGAMOS LAS METAS
+        // 2. CARGAMOS LAS METAS Y PRECIOS ESPECIALES
         const condicionesIds = Object.values(condicionesCache).map(c => c.id);
         
         if (condicionesIds.length > 0) {
+            // 2.1 Cargar Metas
             search.create({
                 type: 'customrecord_fut_meta',
                 filters: [
                     ['custrecord_fut_meta_padre', 'anyof', condicionesIds],
                     'AND',
-                    // NUEVO FILTRO: Traer solo las metas activas
                     ['custrecord_fut_activo_inactivo', 'is', 'T'] 
                 ],
                 columns: ['custrecord_fut_meta_padre', 'custrecord_rin_min', 'custrecord_rin_max', 'custrecord_pct_descuento']
             }).run().each(res => {
                 let padreId = res.getValue('custrecord_fut_meta_padre');
-                
-                // CAMBIO CLAVE: Usar getText() porque ahora son listas (SELECT)
-                let rinMinText = res.getText('custrecord_rin_min') || res.getValue('custrecord_rin_min') || '0';
-                let rinMin = parseInt(rinMinText) || 0;
-                
-                let rinMaxText = res.getText('custrecord_rin_max') || res.getValue('custrecord_rin_max') || '0';
-                let rinMax = parseInt(rinMaxText) || 0;
-                
+                let rinMin = parseInt(res.getText('custrecord_rin_min') || res.getValue('custrecord_rin_min')) || 0;
+                let rinMax = parseInt(res.getText('custrecord_rin_max') || res.getValue('custrecord_rin_max')) || 0;
                 let descString = res.getText('custrecord_pct_descuento') || res.getValue('custrecord_pct_descuento') || '0';
                 
-                // Limpiamos el texto por si trae el símbolo "%" de la lista
                 let descFloat = parseFloat(descString.toString().replace('%', ''));
                 let descDecimal = (descFloat > 1) ? (descFloat / 100) : descFloat;
 
                 for (let marcaId in condicionesCache) {
                     if (condicionesCache[marcaId].id === padreId) {
                         condicionesCache[marcaId].metas.push({ min: rinMin, max: rinMax, descuento: descDecimal });
+                        break;
+                    }
+                }
+                return true;
+            });
+
+            // 2.2 Cargar Precios Especiales por Artículo
+            search.create({
+                type: 'customrecord_fut_precio_esp_art',
+                filters: [
+                    ['custrecord_pea_padre', 'anyof', condicionesIds],
+                    'AND',
+                    ['custrecord_pea_activo', 'is', 'T']
+                ],
+                columns: ['custrecord_pea_padre', 'custrecord_pea_articulo', 'custrecord_pea_precio']
+            }).run().each(res => {
+                let padreId = res.getValue('custrecord_pea_padre');
+                let itemId = res.getValue('custrecord_pea_articulo');
+                let precioEspecial = parseFloat(res.getValue('custrecord_pea_precio')) || 0;
+
+                for (let marcaId in condicionesCache) {
+                    if (condicionesCache[marcaId].id === padreId) {
+                        // Inicializamos el objeto de precios si no existe
+                        if (!condicionesCache[marcaId].precios) condicionesCache[marcaId].precios = {};
                         
-                        // --- LOG: META CARGADA ---
-                        log.debug('Caché Meta Agregada', `A CondID Padre: ${padreId} | Rin Min: ${rinMin} | Rin Max: ${rinMax} | Pct Rebate (Decimal): ${descDecimal}`);
-                        
+                        // Guardamos el precio especial mapeado por el ID del artículo
+                        condicionesCache[marcaId].precios[itemId] = precioEspecial;
                         break;
                     }
                 }
@@ -111,11 +120,8 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let arribo = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
             let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
 
-            // --- LOG: INICIO DE LÍNEA ---
-            log.debug(`--- INICIANDO LÍNEA ${i} ---`, `ItemID: ${itemId} | Cantidad Arribo: ${arribo} | Costo Factura: ${costoFactura}`);
-
             if (itemId && arribo > 0 && costoFactura > 0) {
-                // Obtención del REFMXP anterior (Quitamos quantityonhand de aquí porque es global)
+                // Obtención del REFMXP anterior
                 let itemFields = search.lookupFields({
                     type: search.Type.ITEM,
                     id: itemId,
@@ -123,59 +129,44 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 });
 
                 let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
+                let recordType = Array.isArray(itemFields.recordtype) ? itemFields.recordtype[0]?.value : (typeof itemFields.recordtype === 'object' ? itemFields.recordtype.value : itemFields.recordtype);
                 
-                let recordType = itemFields.recordtype;
-                if (Array.isArray(recordType)) recordType = recordType[0]?.value;
-                else if (typeof recordType === 'object') recordType = recordType.value;
-
-                let marcaArticulo = itemFields[FLD_ITEM_MARCA];
-                if (Array.isArray(marcaArticulo)) marcaArticulo = marcaArticulo[0]?.value;
-                else if (typeof marcaArticulo === 'object') marcaArticulo = marcaArticulo.value;
-
-                // OBTENER TAMAÑO DEL RIN
+                // CORRECCIÓN APLICADA AQUÍ: Extracción correcta de la marca del artículo
+                let marcaArticulo = Array.isArray(itemFields[FLD_ITEM_MARCA]) ? itemFields[FLD_ITEM_MARCA][0]?.value : (typeof itemFields[FLD_ITEM_MARCA] === 'object' ? itemFields[FLD_ITEM_MARCA].value : itemFields[FLD_ITEM_MARCA]);
+                
                 let rinRaw = itemFields[FLD_ITEM_RIN];
-                if (Array.isArray(rinRaw)) {
-                    rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
-                } else if (typeof rinRaw === 'object') {
-                    rinRaw = rinRaw.text || rinRaw.value;
-                }
+                if (Array.isArray(rinRaw)) rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
+                else if (typeof rinRaw === 'object') rinRaw = rinRaw.text || rinRaw.value;
                 let rinArticulo = parseInt(rinRaw) || 0;
-                // ----------------------------------------------
 
-                // --- LOG: DATOS DEL ARTÍCULO ---
-                log.debug(`Paso 1: Datos Artículo (Línea ${i})`, `MarcaID: ${marcaArticulo} | Rin: ${rinArticulo} | Costo Ref Anterior: ${costoRefAnterior}`);
-
-                // Obtención de stock actual en la subsidiaria de la transacción
+                // Stock actual en subsidiaria
                 let stockActual = 0;
                 if (subsidiariaTx) {
                     search.create({
                         type: search.Type.ITEM,
-                        filters: [
-                            ['internalid', 'anyof', itemId],
-                            'AND',
-                            ['inventorylocation.subsidiary', 'anyof', subsidiariaTx]
-                        ],
-                        columns: [
-                            search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })
-                        ]
+                        filters: [['internalid', 'anyof', itemId], 'AND', ['inventorylocation.subsidiary', 'anyof', subsidiariaTx]],
+                        columns: [search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })]
                     }).run().each(res => {
                         stockActual = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
                         return true;
                     });
                 }
-                // ========================================================
 
-                // --- LOG: STOCK ACTUAL ---
-                log.debug(`Paso 2: Stock (Línea ${i})`, `Stock actual en Subsidiaria ${subsidiariaTx}: ${stockActual}`);
-
-                // Logica para obtener los porcentajes de descuento
+                // Logica para obtener los porcentajes y precios
                 let pctProntoPago = 0;
                 let pctRebate = 0;
+                let precioEspecialActivo = 0; // NUEVO
 
                 if (marcaArticulo && condicionesCache[marcaArticulo]) {
                     const condicionActiva = condicionesCache[marcaArticulo];
                     pctProntoPago = condicionActiva.pp;
 
+                    // 1. Verificamos si este artículo exacto tiene un Precio Especial
+                    if (condicionActiva.precios && condicionActiva.precios[itemId]) {
+                        precioEspecialActivo = condicionActiva.precios[itemId];
+                    }
+
+                    // 2. Calculamos rebaje por Metas
                     if (rinArticulo > 0 && condicionActiva.metas.length > 0) {
                         for (let m = 0; m < condicionActiva.metas.length; m++) {
                             let escalon = condicionActiva.metas[m];
@@ -186,41 +177,26 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                         }
                     }
                 }
-                // ========================================================
-
-                // --- LOG: PORCENTAJES ENCONTRADOS ---
-                log.debug(`Paso 3: Porcentajes Aplicables (Línea ${i})`, `Pronto Pago (Dec): ${pctProntoPago} | Rebate Meta (Dec): ${pctRebate}`);
 
                 // Cálculo descuentos y costo neto
-                let descuentoProntoPago = costoFactura * pctProntoPago;
-                let descuentoRebate = costoFactura * pctRebate;
-                let costoNeto = (costoFactura - descuentoProntoPago - descuentoRebate) * factorIVA;
+                // Si hay un precio especial, sustituye al costo de la factura como base del cálculo
+                let costoBaseCalculo = (precioEspecialActivo > 0) ? precioEspecialActivo : costoFactura;
+                
+                let descuentoProntoPago = costoBaseCalculo * pctProntoPago;
+                let descuentoRebate = costoBaseCalculo * pctRebate;
+                let costoNeto = (costoBaseCalculo - descuentoProntoPago - descuentoRebate) * factorIVA;
 
-                // --- LOG: CÁLCULO DE COSTO NETO ---
-                log.debug(`Paso 4: Cálculo Costo Neto (Línea ${i})`, `Descuento PP ($): ${descuentoProntoPago} | Descuento Rebate ($): ${descuentoRebate} | Base c/Descuentos: ${costoFactura - descuentoProntoPago - descuentoRebate} | Costo Neto (+IVA): ${costoNeto}`);
-
-                // ---Promedio usando el Costo Ref Anterior ---
                 let valorArribo = arribo * costoNeto;
                 let valorStock = stockActual * costoRefAnterior; 
                 let numerador = valorArribo + valorStock;
                 let denominador = arribo + stockActual;
 
-                let costoRef = (denominador > 0) ? (numerador / denominador) : 0;
-
-                // --- LOG: CÁLCULO PROMEDIO PONDERADO ---
-                log.debug(`Paso 5: Promedio Ponderado (Línea ${i})`, `Valor Arribo ($): ${valorArribo} | Valor Stock Anterior ($): ${valorStock} | Numerador (Suma $): ${numerador} | Denominador (Piezas Totales): ${denominador} | COSTO REF NUEVO: ${costoRef}`);
+                let costoRef = (denominador > 0) ? parseFloat((numerador / denominador).toFixed(2)) : 0;
 
                 log.debug({
-                    title: `Resumen Final - Artículo: ${itemId} | Marca: ${marcaArticulo} | Rin: ${rinArticulo}`,
-                    details: `Subsidiaria: ${subsidiariaTx} | Stock Aislado: ${stockActual} | RefAnterior: ${costoRefAnterior} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
+                    title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo}`,
+                    details: `Costo Factura: ${costoFactura} | Precio Especial Usado: ${precioEspecialActivo} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
                 });
-
-                /*newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcol_precio_unitario_real', 
-                    line: i,
-                    value: costoRef
-                }); */
 
                 if (recordType) {
                     try {
@@ -230,16 +206,13 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                             values: { [FLD_ITEM_REFMXP]: costoRef },
                             options: { enableSourcing: false, ignoreMandatoryFields: true }
                         });
-                        
-                        // --- LOG: CONFIRMACIÓN DE GUARDADO ---
-                        log.debug(`Éxito Línea ${i}`, `Se actualizó el campo ${FLD_ITEM_REFMXP} en el artículo ${itemId} con el valor ${costoRef}`);
                     } catch (e) {
                         log.error(`Error actualizando el Artículo ${itemId}`, e.message);
                     }
                 }
             }
         }
-    }
+    };
 
     return {
         beforeSubmit: beforeSubmit

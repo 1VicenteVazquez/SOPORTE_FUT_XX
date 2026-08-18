@@ -4,13 +4,6 @@
  * @NModuleScope SameAccount
  *
  * SL_Fut_CondCom_Panel.js
- *
- * FIX: se agrega el tracking de IDs originales (custpage_ids_originales)
- * y la eliminación en base de datos de las condiciones que el usuario
- * quita del sublist antes de guardar. Antes, una línea borrada en el
- * inline editor simplemente no llegaba en el POST y por lo tanto nunca
- * se procesaba (ni se actualizaba, ni se eliminaba), quedando activa
- * en la base de datos junto con la condición nueva.
  */
 define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (serverWidget, search, record, redirect, log) => {
 
@@ -20,7 +13,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const FIELD_NOMBRE = 'custrecord_condcom_nombre';
     const FIELD_ACTIVO = 'custrecord_condcom_activo';
     const FIELD_PRONTO_PAGO = 'custrecord_condcom_pronto_pago';
-    const FIELD_PRECIO_ESP = 'custrecord_fut_condcom_precio_especial';
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -105,8 +97,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldCondicion.updateDisplayType({ displayType: displayModo });
         if (isEdit) fldCondicion.isMandatory = true; 
         
-        // sublist.addField({ id: 'custpage_col_pp', type: serverWidget.FieldType.PERCENT, label: 'Pronto Pago (%)' }).updateDisplayType({ displayType: displayModo });
-
         sublist.addField({ 
             id: 'custpage_col_pp', 
             type: serverWidget.FieldType.SELECT, 
@@ -114,19 +104,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             source: 'customlist_fut_lista_porcentajes_descu' 
         }).updateDisplayType({ displayType: displayModo });
 
+        // SE ELIMINÓ LA COLUMNA DE PRECIO ESPECIAL DE AQUÍ
 
-        sublist.addField({ id: 'custpage_col_precio_esp', type: serverWidget.FieldType.FLOAT, label: 'Precio Especial' }).updateDisplayType({ displayType: displayModo });
-        
-
-
-// AJUSTE PARA OCUALTAR CONDICIONES POR FILTRO PROVEEDOR 
-        // const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
-        // if (isEdit) colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-
-        // Define el ID de tu proveedor especial (¡Cambia el '123' por el Internal ID real de JK TORNEL!)
+        // Define el ID de tu proveedor especial (¡Cambia el '1978' por el Internal ID real de JK TORNEL!)
         const ID_JK_TORNEL = '1978'; 
 
-        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Matriz de Metas' });
+        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Configuraciones' });
         
         if (proveedorId === ID_JK_TORNEL) {
             // Si es JK Tornel, escondemos la columna por completo
@@ -141,20 +124,17 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
             // --- FIX: acumulador de IDs existentes en este render ---
             const idsOriginales = [];
-            // ---------------------------------------------------------
             
             // Columas de auditoría: fecha de creación y última modificación
             search.create({
                 type: CUSTOM_RECORD_PADRE,
                 filters: [[FIELD_PROVEEDOR, 'anyof', proveedorId], 'AND', [FIELD_MARCA, 'anyof', marcaId]],
-                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PRECIO_ESP, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
+                // SE ELIMINÓ EL CAMPO FIELD_PRECIO_ESP DE LAS COLUMNAS DE BUSQUEDA
+                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
             }).run().each(res => {
                 
                 const idRegistro = res.id;
-
-                // --- FIX: registrar este ID como "existente antes de editar" ---
                 idsOriginales.push(idRegistro);
-                // -----------------------------------------------------------------
                 
                 const provTxt = res.getText(FIELD_PROVEEDOR) || res.getValue(FIELD_PROVEEDOR) || '---';
                 const marcaTxt = res.getText(FIELD_MARCA) || res.getValue(FIELD_MARCA) || '---';
@@ -165,7 +145,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 const estaActivo = res.getValue(FIELD_ACTIVO);
                 const nombre = res.getValue(FIELD_NOMBRE) || res.getText(FIELD_NOMBRE) || 'Sin Nombre';
                 const prontoPago = res.getValue(FIELD_PRONTO_PAGO);
-                const precioEspecial = res.getValue(FIELD_PRECIO_ESP);
 
                 sublist.setSublistValue({ id: 'custpage_col_id', line: lineIndex, value: idRegistro });
                 sublist.setSublistValue({ id: 'custpage_col_prov_txt', line: lineIndex, value: provTxt });
@@ -181,26 +160,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     sublist.setSublistValue({ id: 'custpage_col_pp', line: lineIndex, value: prontoPago });
                 }
 
-                if (precioEspecial !== null && precioEspecial !== '') {
-                    sublist.setSublistValue({ id: 'custpage_col_precio_esp', line: lineIndex, value: precioEspecial });
-                }
-                
-// AJUSTE PARA Evitar inyectar los botones de "Ver Metas"
-                // const txtLink = isEdit ? 'Configurar Metas' : 'Ver Metas';
-                // sublist.setSublistValue({ 
-                //     id: 'custpage_col_accion', 
-                //     line: lineIndex, 
-                //     value: `<a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold;">${txtLink}</a>` 
-                // });
-                
-
-                // Solo inyectamos los links si NO es el proveedor JK Tornel
+                // CORRECCIÓN APLICADA AQUÍ: AMBOS ENLACES INTEGRADOS
                 if (proveedorId !== ID_JK_TORNEL) {
-                    const txtLink = isEdit ? 'Configurar Metas' : 'Ver Metas';
+                    const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
+                    const txtLinkPrecios = isEdit ? 'Precios Esp.' : 'Ver Precios';
+                    
                     sublist.setSublistValue({ 
                         id: 'custpage_col_accion', 
                         line: lineIndex, 
-                        value: `<a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold;">${txtLink}</a>` 
+                        value: `
+                            <a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold; color:#00558F;">${txtLinkMetas}</a> 
+                            &nbsp;|&nbsp; 
+                            <a href="javascript:void(0);" onclick="abrirMatrizPrecios('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold; color:#d9534f;">${txtLinkPrecios}</a>
+                        ` 
                     });
                 }
                 
@@ -210,7 +182,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
             // --- FIX: persistir la lista de IDs originales en el campo oculto ---
             idsOriginalesField.defaultValue = idsOriginales.join(',');
-            // -----------------------------------------------------------------------
         }
         context.response.writePage(form);
     }
@@ -230,15 +201,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             return; 
         }
 
-        // --- FIX: IDs que existían cuando se abrió el formulario de edición ---
         const idsOriginales = (req.parameters.custpage_ids_originales || '')
             .split(',')
             .map(id => id.trim())
             .filter(id => id);
 
-        // --- FIX: IDs que sí llegaron en este submit (líneas que el usuario conservó) ---
         const idsEnviados = [];
-
         const lineCount = req.getLineCount({ group: 'custpage_sublist' });
         
         for (let i = 0; i < lineCount; i++) {
@@ -246,7 +214,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             const estaActivo = (req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_activo', line: i }) === 'T');
             const nombreCond = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_condicion', line: i });
             const prontoPago = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_pp', line: i });
-            const precioEspecial = req.getSublistValue({ group: 'custpage_sublist', name: 'custpage_col_precio_esp', line: i });
 
             if (idRegistro) {
                 idsEnviados.push(String(idRegistro).trim());
@@ -254,10 +221,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const rec = record.load({ type: CUSTOM_RECORD_PADRE, id: idRegistro });
                     rec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
                     if (nombreCond) rec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
-                    // rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
-                    // Guardamos el ID de la lista. Si viene vacío, guardamos null.
                     rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
-                    rec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
+                    // SE ELIMINÓ EL GUARDADO DEL CAMPO PRECIO ESPECIAL
                     rec.save({ ignoreMandatoryFields: true });
                 } catch (e) { 
                     log.error(`Error actualizando Cabecera ID ${idRegistro}`, e.message); 
@@ -269,10 +234,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRec.setValue({ fieldId: FIELD_MARCA, value: marcaId });
                     nuevoRec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
                     nuevoRec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
-                    // nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? parseFloat(prontoPago) : 0 });
-                    // Lo mismo para los registros nuevos
                     nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
-                    nuevoRec.setValue({ fieldId: FIELD_PRECIO_ESP, value: precioEspecial ? parseFloat(precioEspecial) : null });
+                    // SE ELIMINÓ EL GUARDADO DEL CAMPO PRECIO ESPECIAL
                     nuevoRec.save({ ignoreMandatoryFields: true });
                 } catch (e) {
                     log.error('Error creando nueva Cabecera', e.message);
@@ -280,10 +243,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             }
         }
 
-        // --- FIX: eliminar en base de datos las condiciones que el usuario quitó ---
-        // Cualquier ID que existía al abrir el formulario pero que no llegó en este
-        // submit fue borrado por el usuario en el sublist (inline editor) y debe
-        // eliminarse también en la base de datos.
         const idsAEliminar = idsOriginales.filter(id => idsEnviados.indexOf(id) === -1);
 
         idsAEliminar.forEach(id => {
@@ -293,7 +252,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 log.error(`Error eliminando condición ID ${id}`, e.message);
             }
         });
-        // -----------------------------------------------------------------------------
 
         redirect.toSuitelet({
             scriptId: 'customscript_fut_sl_condcom_panel',
