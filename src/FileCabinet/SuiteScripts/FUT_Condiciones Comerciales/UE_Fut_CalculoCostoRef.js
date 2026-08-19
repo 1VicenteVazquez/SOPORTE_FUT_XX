@@ -10,7 +10,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
     // CONSTANTES DE CAMPOS PERSONALIZADOS 
     const FLD_ITEM_MARCA = 'custitem_nso_marca'; 
     const FLD_ITEM_RIN = 'custitem_diametro_rin'; 
-    const FLD_ITEM_REFMXP = 'custitem_nso_refmxp'; 
+    const FLD_ITEM_REFMXP = 'custitemcustitem_nso_refmxp'; 
     // ----------------------------------------
 
     const beforeSubmit = (scriptContext) => {
@@ -44,9 +44,11 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             columns: ['internalid', 'custrecord_condcom_marca', 'custrecord_condcom_pronto_pago']
         }).run().each(res => {
             let condId = res.id;
-            let marcaId = res.getValue('custrecord_condcom_marca');
+            let marcaId = res.getValue({ name: 'custrecord_condcom_marca' });
             
-            let ppString = res.getValue('custrecord_condcom_pronto_pago') || '0';
+            // CORRECCIÓN: Extracción segura de texto para Pronto Pago
+            let ppText = res.getText({ name: 'custrecord_condcom_pronto_pago' });
+            let ppString = ppText ? ppText : '0'; 
             let ppFloat = parseFloat(ppString.toString().replace('%', ''));
             let ppDecimal = (ppFloat > 1) ? (ppFloat / 100) : ppFloat; 
 
@@ -68,10 +70,17 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 ],
                 columns: ['custrecord_fut_meta_padre', 'custrecord_rin_min', 'custrecord_rin_max', 'custrecord_pct_descuento']
             }).run().each(res => {
-                let padreId = res.getValue('custrecord_fut_meta_padre');
-                let rinMin = parseInt(res.getText('custrecord_rin_min') || res.getValue('custrecord_rin_min')) || 0;
-                let rinMax = parseInt(res.getText('custrecord_rin_max') || res.getValue('custrecord_rin_max')) || 0;
-                let descString = res.getText('custrecord_pct_descuento') || res.getValue('custrecord_pct_descuento') || '0';
+                let padreId = res.getValue({ name: 'custrecord_fut_meta_padre' });
+                
+                // CORRECCIÓN: Extracción segura de texto para los Rines y Descuentos
+                let rinMinText = res.getText({ name: 'custrecord_rin_min' });
+                let rinMin = parseInt(rinMinText) || 0;
+                
+                let rinMaxText = res.getText({ name: 'custrecord_rin_max' });
+                let rinMax = parseInt(rinMaxText) || 0;
+                
+                let descText = res.getText({ name: 'custrecord_pct_descuento' });
+                let descString = descText ? descText : '0';
                 
                 let descFloat = parseFloat(descString.toString().replace('%', ''));
                 let descDecimal = (descFloat > 1) ? (descFloat / 100) : descFloat;
@@ -95,9 +104,9 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 ],
                 columns: ['custrecord_pea_padre', 'custrecord_pea_articulo', 'custrecord_pea_precio']
             }).run().each(res => {
-                let padreId = res.getValue('custrecord_pea_padre');
-                let itemId = res.getValue('custrecord_pea_articulo');
-                let precioEspecial = parseFloat(res.getValue('custrecord_pea_precio')) || 0;
+                let padreId = res.getValue({ name: 'custrecord_pea_padre' });
+                let itemId = res.getValue({ name: 'custrecord_pea_articulo' });
+                let precioEspecial = parseFloat(res.getValue({ name: 'custrecord_pea_precio' })) || 0;
 
                 for (let marcaId in condicionesCache) {
                     if (condicionesCache[marcaId].id === padreId) {
@@ -131,7 +140,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
                 let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
                 let recordType = Array.isArray(itemFields.recordtype) ? itemFields.recordtype[0]?.value : (typeof itemFields.recordtype === 'object' ? itemFields.recordtype.value : itemFields.recordtype);
                 
-                // CORRECCIÓN APLICADA AQUÍ: Extracción correcta de la marca del artículo
+                // Extracción correcta de la marca del artículo
                 let marcaArticulo = Array.isArray(itemFields[FLD_ITEM_MARCA]) ? itemFields[FLD_ITEM_MARCA][0]?.value : (typeof itemFields[FLD_ITEM_MARCA] === 'object' ? itemFields[FLD_ITEM_MARCA].value : itemFields[FLD_ITEM_MARCA]);
                 
                 let rinRaw = itemFields[FLD_ITEM_RIN];
