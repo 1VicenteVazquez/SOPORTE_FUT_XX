@@ -76,7 +76,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldRinMax.updateDisplayType({ displayType: displayModo });
 
 
-        const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.PERCENT, label: 'Meta a Alcanzar (%)' });
+        const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.FLOAT, label: 'Meta a Alcanzar (%)' });
         fldMeta.updateDisplayType({ displayType: displayModo });
         
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
