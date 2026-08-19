@@ -24,25 +24,57 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const mode = params.mode || 'view';
         const isEdit = (mode === 'edit');
 
+        // let nombrePadre = 'Condición Comercial';
+        // if (registroId) {
+        //     try {
+        //         const parentLookup = search.lookupFields({
+        //             type: 'customrecord_fut_condcom',
+        //             id: registroId,
+        //             columns: ['custrecord_condcom_nombre']
+        //         });
+        //         if (parentLookup && parentLookup.custrecord_condcom_nombre) nombrePadre = parentLookup.custrecord_condcom_nombre;
+        //     } catch(e) {}
+        // }
+
+        // const form = serverWidget.createForm({ title: 'Precios Especiales: ' + nombrePadre, hideNavBar: true });
+        
+        // form.clientScriptModulePath = './CS_Fut_CondCom_Precios.js'; 
+
+        // form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
+        // form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
+
+
         let nombrePadre = 'Condición Comercial';
+        let marcaPadre = ''; // --- NUEVO ---
+        
         if (registroId) {
             try {
                 const parentLookup = search.lookupFields({
                     type: 'customrecord_fut_condcom',
                     id: registroId,
-                    columns: ['custrecord_condcom_nombre']
+                    // --- NUEVO: Extraemos también la marca ---
+                    columns: ['custrecord_condcom_nombre', 'custrecord_condcom_marca']
                 });
                 if (parentLookup && parentLookup.custrecord_condcom_nombre) nombrePadre = parentLookup.custrecord_condcom_nombre;
+                
+                // --- NUEVO: Guardamos el ID de la Marca ---
+                if (parentLookup && parentLookup.custrecord_condcom_marca) {
+                    let m = parentLookup.custrecord_condcom_marca;
+                    marcaPadre = Array.isArray(m) ? m[0].value : m;
+                }
             } catch(e) {}
         }
 
         const form = serverWidget.createForm({ title: 'Precios Especiales: ' + nombrePadre, hideNavBar: true });
         
-        // Un pequeño Client Script genérico para cerrar el popup
         form.clientScriptModulePath = './CS_Fut_CondCom_Precios.js'; 
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
         form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
+        
+        // --- NUEVO: Campo oculto con la marca permitida para que el Client Script la lea ---
+        form.addField({ id: 'custpage_marca_padre', type: serverWidget.FieldType.TEXT, label: 'Marca Permitida' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = marcaPadre;
+
 
         const tipoSublista = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
@@ -110,13 +142,15 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (registroId) {
             try {
-                // Borramos y recreamos (como en metas)
+                // LIMPIEZA: Borramos los registros anteriores de este Padre para recrearlos actualizados
                 search.create({ type: RECORD_PRECIOS, filters: [[FLD_PADRE, 'anyof', registroId]] }).run().each(res => {
                     record.delete({ type: RECORD_PRECIOS, id: res.id });
                     return true;
                 });
 
                 const lineCount = req.getLineCount({ group: 'custpage_sublist_precios' });
+                
+                // GUARDADO DIRECTO AL CUSTOM RECORD (Centralizado)
                 for (let i = 0; i < lineCount; i++) {
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
