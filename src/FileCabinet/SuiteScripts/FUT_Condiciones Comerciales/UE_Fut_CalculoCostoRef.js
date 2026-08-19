@@ -10,7 +10,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
     // CONSTANTES DE CAMPOS PERSONALIZADOS 
     const FLD_ITEM_MARCA = 'custitem_nso_marca'; 
     const FLD_ITEM_RIN = 'custitem_diametro_rin'; 
-    const FLD_ITEM_REFMXP = 'custitemcustitem_nso_refmxp'; 
+    const FLD_ITEM_REFMXP = 'custitem_nso_refmxp'; 
     // ----------------------------------------
 
     const beforeSubmit = (scriptContext) => {
