@@ -76,7 +76,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldRinMax.updateDisplayType({ displayType: displayModo });
 
 
-        const fldMeta = sublist.addField({ id: 'custpage_col_meta_pct', type: serverWidget.FieldType.FLOAT, label: 'Meta a Alcanzar (%)' });
+        const fldMeta = sublist.addField({
+            id: 'custpage_col_meta_pct',
+            type: isEdit ? serverWidget.FieldType.FLOAT : serverWidget.FieldType.TEXT,
+            label: 'Meta a Alcanzar (%)'
+        });
         fldMeta.updateDisplayType({ displayType: displayModo });
         
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
@@ -125,7 +129,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 sublist.setSublistValue({ id: 'custpage_col_rin_max', line: line, value: res.getValue(FLD_RIN_MAX) || 0 });
                 
                 let meta = res.getValue(FLD_META_PCT);
-                if(meta) sublist.setSublistValue({ id: 'custpage_col_meta_pct', line: line, value: meta });
+                if (meta) {
+                    const metaFormateada = isEdit ? meta : (parseFloat(meta).toFixed(1) + '%');
+                    sublist.setSublistValue({ id: 'custpage_col_meta_pct', line: line, value: metaFormateada });
+                }
                 
                 sublist.setSublistValue({ id: 'custpage_col_objetivo', line: line, value: res.getValue(FLD_OBJETIVO) || 0 });
                 
