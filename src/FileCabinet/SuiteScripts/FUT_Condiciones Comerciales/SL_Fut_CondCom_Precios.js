@@ -12,6 +12,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
     const FLD_ARTICULO = 'custrecord_pea_articulo'; 
     const FLD_PRECIO = 'custrecord_pea_precio';
     const FLD_ACTIVO = 'custrecord_pea_activo';
+    const FLD_DESCRIPCION = 'custrecord_pea_descripcion';
 
     const onRequest = (context) => {
         if (context.request.method === 'GET') renderForm(context);
@@ -55,21 +56,35 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         
         const sublist = form.addSublist({ id: 'custpage_sublist_precios', type: tipoSublista, label: 'Artículos con Precio Especial' });
         
+        // --- 1. ACTIVO ---
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
-        // --- CAMBIO CLAVE: Quitamos el "source: 'item'" para poder llenarlo nosotros ---
+        // --- 2. ARTÍCULO ---
         const fldArticulo = sublist.addField({ id: 'custpage_col_articulo', type: serverWidget.FieldType.SELECT, label: 'Artículo' });
         fldArticulo.updateDisplayType({ displayType: displayModo });
         
+        // --- 3. DESCRIPCIÓN ---
+        const fldDesc = sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción' });
+        fldDesc.updateDisplayType({ displayType: displayModo });
+
+        // --- 4. FECHA DE CREACIÓN ---
+        const fldCreado = sublist.addField({ id: 'custpage_col_creado', type: serverWidget.FieldType.TEXT, label: 'Fecha de Creación' });
+        fldCreado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // --- 5. ÚLTIMA MODIFICACIÓN ---
+        const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
+        fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        // --- 6. PRECIO ESPECIAL ---
         const fldPrecio = sublist.addField({ id: 'custpage_col_precio', type: serverWidget.FieldType.CURRENCY, label: 'Precio Especial' });
         fldPrecio.updateDisplayType({ displayType: displayModo });
+
 
         if (isEdit) {
             fldArticulo.isMandatory = true;
             fldPrecio.isMandatory = true;
         }
 
-        // --- MAGIA AQUÍ: Rellenamos la lista desplegable dinámicamente filtrando por la marca ---
         fldArticulo.addSelectOption({ value: '', text: '' });
         
         if (marcaPadre) {
@@ -84,30 +99,41 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             }).run().each(res => {
                 let nombreItem = res.getValue('itemid');
                 let descripcion = res.getValue('displayname');
-                if (descripcion) nombreItem += ' - ' + descripcion; 
+                
+                if (descripcion && descripcion !== nombreItem) {
+                    nombreItem += ' - ' + descripcion; 
+                }
                 
                 fldArticulo.addSelectOption({ value: res.id, text: nombreItem });
                 return true;
             });
         }
-        // ------------------------------------------------------------------
 
         if (registroId) {
             let line = 0;
             search.create({
                 type: RECORD_PRECIOS,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                columns: [FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO]
+                columns: [FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO, FLD_DESCRIPCION, 'created', 'lastmodified']
             }).run().each(res => {
+                
                 let estaActivo = res.getValue(FLD_ACTIVO);
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
                 
                 let art = res.getValue(FLD_ARTICULO);
-                // Try/Catch por si intentan cargar un artículo que se inactivó en NetSuite recientemente
                 if (art) {
                     try { sublist.setSublistValue({ id: 'custpage_col_articulo', line: line, value: art }); } catch(e){}
                 }
                 
+                let desc = res.getValue(FLD_DESCRIPCION);
+                if (desc) sublist.setSublistValue({ id: 'custpage_col_descripcion', line: line, value: desc });
+
+                let creado = res.getValue('created');
+                if (creado) sublist.setSublistValue({ id: 'custpage_col_creado', line: line, value: creado });
+                
+                let modificado = res.getValue('lastmodified');
+                if (modificado) sublist.setSublistValue({ id: 'custpage_col_modificado', line: line, value: modificado });
+
                 let precio = res.getValue(FLD_PRECIO);
                 if (precio) sublist.setSublistValue({ id: 'custpage_col_precio', line: line, value: precio });
                 
@@ -154,6 +180,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
                     const articulo = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_articulo', line: i });
+                    const descripcion = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_descripcion', line: i });
                     const precio = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_precio', line: i });
 
                     if(articulo && precio) {
@@ -161,6 +188,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                         nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
                         nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
                         nuevoRegistro.setValue({ fieldId: FLD_ARTICULO, value: articulo });
+                        
+                        if (descripcion) {
+                            nuevoRegistro.setValue({ fieldId: FLD_DESCRIPCION, value: descripcion });
+                        }
+
                         nuevoRegistro.setValue({ fieldId: FLD_PRECIO, value: parseFloat(precio) });
                         nuevoRegistro.save({ ignoreMandatoryFields: true });
                     }
