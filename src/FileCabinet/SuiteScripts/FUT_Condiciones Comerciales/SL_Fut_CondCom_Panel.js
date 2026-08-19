@@ -107,15 +107,31 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         // Define el ID de tu proveedor especial (¡Cambia el '1978' por el Internal ID real de JK TORNEL!)
         const ID_JK_TORNEL = '1978'; 
 
-        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXTAREA, label: 'Configuraciones' });
+
+        // const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXTAREA, label: 'Configuraciones' });
+        
+        // if (proveedorId === ID_JK_TORNEL) {
+        //     // Si es JK Tornel, escondemos la columna por completo
+        //     colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+        // } else if (isEdit) {
+        //     // Si es cualquier otro proveedor en modo edición, la mostramos normal
+        //     colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+        // }
+
+        // --- COLUMNAS SEPARADAS ---
+        const colMetas = sublist.addField({ id: 'custpage_col_metas', type: serverWidget.FieldType.TEXTAREA, label: 'Matriz de Metas' });
+        const colPrecios = sublist.addField({ id: 'custpage_col_precios', type: serverWidget.FieldType.TEXTAREA, label: 'Precios Especiales' });
         
         if (proveedorId === ID_JK_TORNEL) {
-            // Si es JK Tornel, escondemos la columna por completo
-            colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+            // Si es JK Tornel, escondemos ambas columnas
+            colMetas.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+            colPrecios.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
         } else if (isEdit) {
-            // Si es cualquier otro proveedor en modo edición, la mostramos normal
-            colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+            // Si estamos en modo edición, las mostramos como texto en línea (INLINE)
+            colMetas.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+            colPrecios.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         }
+
 
         if (proveedorId && marcaId) {
             let lineIndex = 0;
@@ -157,15 +173,33 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 if (prontoPago !== null && prontoPago !== '') {
                     sublist.setSublistValue({ id: 'custpage_col_pp', line: lineIndex, value: prontoPago });
                 }
-                // CORRECCIÓN APLICADA AQUÍ: AMBOS ENLACES INTEGRADOS Y EN UNA SOLA LÍNEA
+                // // CORRECCIÓN APLICADA AQUÍ: AMBOS ENLACES INTEGRADOS Y EN UNA SOLA LÍNEA
+                // if (proveedorId !== ID_JK_TORNEL) {
+                //     const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
+                //     const txtLinkPrecios = isEdit ? 'Precios Esp.' : 'Ver Precios';
+                    
+                //     sublist.setSublistValue({ 
+                //         id: 'custpage_col_accion', 
+                //         line: lineIndex, 
+                //         value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')" style="font-weight:bold;color:#00558F;">${txtLinkMetas}</a> | <a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')" style="font-weight:bold;color:#d9534f;">${txtLinkPrecios}</a>` 
+                //     });
+                // }
+
+                // --- LINKS EN COLUMNAS SEPARADAS ---
                 if (proveedorId !== ID_JK_TORNEL) {
                     const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
-                    const txtLinkPrecios = isEdit ? 'Precios Esp.' : 'Ver Precios';
+                    const txtLinkPrecios = isEdit ? 'Configurar Precios' : 'Ver Precios';
                     
                     sublist.setSublistValue({ 
-                        id: 'custpage_col_accion', 
+                        id: 'custpage_col_metas', 
                         line: lineIndex, 
-                        value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')" style="font-weight:bold;color:#00558F;">${txtLinkMetas}</a> | <a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')" style="font-weight:bold;color:#d9534f;">${txtLinkPrecios}</a>` 
+                        value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')" style="font-weight:bold;color:#00558F;">${txtLinkMetas}</a>` 
+                    });
+
+                    sublist.setSublistValue({ 
+                        id: 'custpage_col_precios', 
+                        line: lineIndex, 
+                        value: `<a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')" style="font-weight:bold;color:#d9534f;">${txtLinkPrecios}</a>` 
                     });
                 }
                 
