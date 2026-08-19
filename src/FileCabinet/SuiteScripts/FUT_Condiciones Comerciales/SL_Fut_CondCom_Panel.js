@@ -104,12 +104,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             source: 'customlist_fut_lista_porcentajes_descu' 
         }).updateDisplayType({ displayType: displayModo });
 
-        // SE ELIMINÓ LA COLUMNA DE PRECIO ESPECIAL DE AQUÍ
-
         // Define el ID de tu proveedor especial (¡Cambia el '1978' por el Internal ID real de JK TORNEL!)
         const ID_JK_TORNEL = '1978'; 
 
-        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXT, label: 'Configuraciones' });
+        const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXTAREA, label: 'Configuraciones' });
         
         if (proveedorId === ID_JK_TORNEL) {
             // Si es JK Tornel, escondemos la columna por completo
@@ -159,8 +157,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 if (prontoPago !== null && prontoPago !== '') {
                     sublist.setSublistValue({ id: 'custpage_col_pp', line: lineIndex, value: prontoPago });
                 }
-
-                // CORRECCIÓN APLICADA AQUÍ: AMBOS ENLACES INTEGRADOS
+                // CORRECCIÓN APLICADA AQUÍ: AMBOS ENLACES INTEGRADOS Y EN UNA SOLA LÍNEA
                 if (proveedorId !== ID_JK_TORNEL) {
                     const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
                     const txtLinkPrecios = isEdit ? 'Precios Esp.' : 'Ver Precios';
@@ -168,11 +165,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     sublist.setSublistValue({ 
                         id: 'custpage_col_accion', 
                         line: lineIndex, 
-                        value: `
-                            <a href="javascript:void(0);" onclick="abrirMatrizMetas('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold; color:#00558F;">${txtLinkMetas}</a> 
-                            &nbsp;|&nbsp; 
-                            <a href="javascript:void(0);" onclick="abrirMatrizPrecios('${idRegistro}', '${mode}')" class="dottedlink" style="font-weight:bold; color:#d9534f;">${txtLinkPrecios}</a>
-                        ` 
+                        value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')" style="font-weight:bold;color:#00558F;">${txtLinkMetas}</a> | <a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')" style="font-weight:bold;color:#d9534f;">${txtLinkPrecios}</a>` 
                     });
                 }
                 
@@ -222,7 +215,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     rec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
                     if (nombreCond) rec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
                     rec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
-                    // SE ELIMINÓ EL GUARDADO DEL CAMPO PRECIO ESPECIAL
                     rec.save({ ignoreMandatoryFields: true });
                 } catch (e) { 
                     log.error(`Error actualizando Cabecera ID ${idRegistro}`, e.message); 
@@ -235,7 +227,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRec.setValue({ fieldId: FIELD_NOMBRE, value: nombreCond });
                     nuevoRec.setValue({ fieldId: FIELD_ACTIVO, value: estaActivo });
                     nuevoRec.setValue({ fieldId: FIELD_PRONTO_PAGO, value: prontoPago ? prontoPago : null });
-                    // SE ELIMINÓ EL GUARDADO DEL CAMPO PRECIO ESPECIAL
                     nuevoRec.save({ ignoreMandatoryFields: true });
                 } catch (e) {
                     log.error('Error creando nueva Cabecera', e.message);
