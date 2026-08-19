@@ -24,40 +24,18 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const mode = params.mode || 'view';
         const isEdit = (mode === 'edit');
 
-        // let nombrePadre = 'Condición Comercial';
-        // if (registroId) {
-        //     try {
-        //         const parentLookup = search.lookupFields({
-        //             type: 'customrecord_fut_condcom',
-        //             id: registroId,
-        //             columns: ['custrecord_condcom_nombre']
-        //         });
-        //         if (parentLookup && parentLookup.custrecord_condcom_nombre) nombrePadre = parentLookup.custrecord_condcom_nombre;
-        //     } catch(e) {}
-        // }
-
-        // const form = serverWidget.createForm({ title: 'Precios Especiales: ' + nombrePadre, hideNavBar: true });
-        
-        // form.clientScriptModulePath = './CS_Fut_CondCom_Precios.js'; 
-
-        // form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
-        // form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
-
-
         let nombrePadre = 'Condición Comercial';
-        let marcaPadre = ''; // --- NUEVO ---
+        let marcaPadre = ''; 
         
         if (registroId) {
             try {
                 const parentLookup = search.lookupFields({
                     type: 'customrecord_fut_condcom',
                     id: registroId,
-                    // --- NUEVO: Extraemos también la marca ---
                     columns: ['custrecord_condcom_nombre', 'custrecord_condcom_marca']
                 });
                 if (parentLookup && parentLookup.custrecord_condcom_nombre) nombrePadre = parentLookup.custrecord_condcom_nombre;
                 
-                // --- NUEVO: Guardamos el ID de la Marca ---
                 if (parentLookup && parentLookup.custrecord_condcom_marca) {
                     let m = parentLookup.custrecord_condcom_marca;
                     marcaPadre = Array.isArray(m) ? m[0].value : m;
@@ -71,10 +49,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
         form.addField({ id: 'custpage_registro_id', type: serverWidget.FieldType.TEXT, label: 'ID Padre' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = registroId;
-        
-        // --- NUEVO: Campo oculto con la marca permitida para que el Client Script la lea ---
-        form.addField({ id: 'custpage_marca_padre', type: serverWidget.FieldType.TEXT, label: 'Marca Permitida' }).updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = marcaPadre;
-
 
         const tipoSublista = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
@@ -83,7 +57,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
-        const fldArticulo = sublist.addField({ id: 'custpage_col_articulo', type: serverWidget.FieldType.SELECT, label: 'Artículo', source: 'item' });
+        // --- CAMBIO CLAVE: Quitamos el "source: 'item'" para poder llenarlo nosotros ---
+        const fldArticulo = sublist.addField({ id: 'custpage_col_articulo', type: serverWidget.FieldType.SELECT, label: 'Artículo' });
         fldArticulo.updateDisplayType({ displayType: displayModo });
         
         const fldPrecio = sublist.addField({ id: 'custpage_col_precio', type: serverWidget.FieldType.CURRENCY, label: 'Precio Especial' });
@@ -93,6 +68,29 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             fldArticulo.isMandatory = true;
             fldPrecio.isMandatory = true;
         }
+
+        // --- MAGIA AQUÍ: Rellenamos la lista desplegable dinámicamente filtrando por la marca ---
+        fldArticulo.addSelectOption({ value: '', text: '' });
+        
+        if (marcaPadre) {
+            search.create({
+                type: search.Type.ITEM,
+                filters: [
+                    ['custitem_nso_marca', 'anyof', marcaPadre],
+                    'AND',
+                    ['isinactive', 'is', 'F']
+                ],
+                columns: ['itemid', 'displayname']
+            }).run().each(res => {
+                let nombreItem = res.getValue('itemid');
+                let descripcion = res.getValue('displayname');
+                if (descripcion) nombreItem += ' - ' + descripcion; 
+                
+                fldArticulo.addSelectOption({ value: res.id, text: nombreItem });
+                return true;
+            });
+        }
+        // ------------------------------------------------------------------
 
         if (registroId) {
             let line = 0;
@@ -105,7 +103,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
                 
                 let art = res.getValue(FLD_ARTICULO);
-                if (art) sublist.setSublistValue({ id: 'custpage_col_articulo', line: line, value: art });
+                // Try/Catch por si intentan cargar un artículo que se inactivó en NetSuite recientemente
+                if (art) {
+                    try { sublist.setSublistValue({ id: 'custpage_col_articulo', line: line, value: art }); } catch(e){}
+                }
                 
                 let precio = res.getValue(FLD_PRECIO);
                 if (precio) sublist.setSublistValue({ id: 'custpage_col_precio', line: line, value: precio });
@@ -142,7 +143,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (registroId) {
             try {
-                // LIMPIEZA: Borramos los registros anteriores de este Padre para recrearlos actualizados
                 search.create({ type: RECORD_PRECIOS, filters: [[FLD_PADRE, 'anyof', registroId]] }).run().each(res => {
                     record.delete({ type: RECORD_PRECIOS, id: res.id });
                     return true;
@@ -150,7 +150,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                 const lineCount = req.getLineCount({ group: 'custpage_sublist_precios' });
                 
-                // GUARDADO DIRECTO AL CUSTOM RECORD (Centralizado)
                 for (let i = 0; i < lineCount; i++) {
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
