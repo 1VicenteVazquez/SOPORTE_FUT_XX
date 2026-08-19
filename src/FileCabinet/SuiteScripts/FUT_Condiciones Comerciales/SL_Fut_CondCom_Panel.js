@@ -33,10 +33,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         form.addField({ id: 'custpage_mode', type: serverWidget.FieldType.TEXT, label: 'Mode' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN }).defaultValue = mode;
 
-        // --- FIX: campo oculto para rastrear qué IDs existían al abrir el formulario ---
         const idsOriginalesField = form.addField({ id: 'custpage_ids_originales', type: serverWidget.FieldType.TEXT, label: 'IDs Originales' })
             .updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        // -------------------------------------------------------------------------------
 
         const proveedorField = form.addField({ id: 'custpage_proveedor', type: serverWidget.FieldType.SELECT, label: 'Proveedor', source: 'vendor' });
         proveedorField.isMandatory = true;
@@ -83,13 +81,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldMarcaSub = sublist.addField({ id: 'custpage_col_marca_txt', type: serverWidget.FieldType.TEXT, label: 'Marca' });
         fldMarcaSub.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
 
-        // --- Columnas de Auditoría ---
         const fldCreado = sublist.addField({ id: 'custpage_col_creado', type: serverWidget.FieldType.TEXT, label: 'Fecha de Creación' });
         fldCreado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
 
         const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
         fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-        // ------------------------------------
 
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
@@ -104,31 +100,26 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             source: 'customlist_fut_lista_porcentajes_descu' 
         }).updateDisplayType({ displayType: displayModo });
 
-        // Define el ID de tu proveedor especial (¡Cambia el '1978' por el Internal ID real de JK TORNEL!)
+        // --- CONSTANTES DE PROVEEDORES ESPECIALES ---
         const ID_JK_TORNEL = '1978'; 
+        const ID_PIRELLI = '7918'; 
 
-
-        // const colAccion = sublist.addField({ id: 'custpage_col_accion', type: serverWidget.FieldType.TEXTAREA, label: 'Configuraciones' });
-        
-        // if (proveedorId === ID_JK_TORNEL) {
-        //     // Si es JK Tornel, escondemos la columna por completo
-        //     colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
-        // } else if (isEdit) {
-        //     // Si es cualquier otro proveedor en modo edición, la mostramos normal
-        //     colAccion.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
-        // }
-
-
-        // --- COLUMNAS SEPARADAS ---
         const colMetas = sublist.addField({ id: 'custpage_col_metas', type: serverWidget.FieldType.TEXTAREA, label: 'Matriz de Metas' });
         const colPrecios = sublist.addField({ id: 'custpage_col_precios', type: serverWidget.FieldType.TEXTAREA, label: 'Precios Especiales' });
         
+        // --- LÓGICA DE VISIBILIDAD DE LAS COLUMNAS ---
         if (proveedorId === ID_JK_TORNEL) {
-            // Si es JK Tornel, ocultamos Metas pero MOSTRAMOS Precios Especiales
+            // JK Tornel: Ocultamos Metas, Mostramos Precios
             colMetas.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
             colPrecios.updateDisplayType({ displayType: isEdit ? serverWidget.FieldDisplayType.INLINE : serverWidget.FieldDisplayType.INLINE });
+            
+        } else if (proveedorId === ID_PIRELLI) {
+            // Pirelli: Mostramos Metas, Ocultamos Precios
+            colPrecios.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+            colMetas.updateDisplayType({ displayType: isEdit ? serverWidget.FieldDisplayType.INLINE : serverWidget.FieldDisplayType.INLINE });
+            
         } else if (isEdit) {
-            // Para otros proveedores en modo edición, mostramos ambas
+            // Otros Proveedores en modo Edición: Mostramos ambas
             colMetas.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
             colPrecios.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
         }
@@ -136,11 +127,8 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (proveedorId && marcaId) {
             let lineIndex = 0;
-
-            // --- FIX: acumulador de IDs existentes en este render ---
             const idsOriginales = [];
             
-            // Columas de auditoría: fecha de creación y última modificación
             search.create({
                 type: CUSTOM_RECORD_PADRE,
                 filters: [[FIELD_PROVEEDOR, 'anyof', proveedorId], 'AND', [FIELD_MARCA, 'anyof', marcaId]],
@@ -174,11 +162,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     sublist.setSublistValue({ id: 'custpage_col_pp', line: lineIndex, value: prontoPago });
                 }
 
-                // --- GESTIÓN DE LINKS SEGÚN EL PROVEEDOR ---
+                // --- GESTIÓN DE LINKS SEGÚN EL PROVEEDOR PARA CADA LÍNEA ---
                 const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
                 const txtLinkPrecios = isEdit ? 'Configurar Precios' : 'Ver Precios';
                 
-                // Si NO es JK Tornel, le pintamos su link de metas
+                // Si NO es JK Tornel, pintamos el link de metas
                 if (proveedorId !== ID_JK_TORNEL) {
                     sublist.setSublistValue({ 
                         id: 'custpage_col_metas', 
@@ -187,18 +175,19 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     });
                 }
 
-                // Para TODOS (incluyendo JK Tornel), pintamos el link de precios especiales
-                sublist.setSublistValue({ 
-                    id: 'custpage_col_precios', 
-                    line: lineIndex, 
-                    value: `<a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')">${txtLinkPrecios}</a>` 
-                });
+                // Si NO es Pirelli, pintamos el link de precios especiales
+                if (proveedorId !== ID_PIRELLI) {
+                    sublist.setSublistValue({ 
+                        id: 'custpage_col_precios', 
+                        line: lineIndex, 
+                        value: `<a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')">${txtLinkPrecios}</a>` 
+                    });
+                }
                 
                 lineIndex++;
                 return true;
             });
 
-            // --- FIX: persistir la lista de IDs originales en el campo oculto ---
             idsOriginalesField.defaultValue = idsOriginales.join(',');
         }
         context.response.writePage(form);
