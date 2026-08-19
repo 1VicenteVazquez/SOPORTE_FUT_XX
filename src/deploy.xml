@@ -1,0 +1,39 @@
+
+
+<!-- 
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Metas.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path> 
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Precios.js</path>
+        
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Panel.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Panel.js</path>
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Metas.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Metas.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/UE_Fut_CalculoCostoRef.js</path>
+        -->
+
+
+
+<deploy>
+    <configuration>
+        <path>~/AccountConfiguration/*</path>
+    </configuration>
+    <files>
+
+
+
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/SL_Fut_CondCom_Precios.js</path>
+        <path>~/FileCabinet/SuiteScripts/FUT_Condiciones Comerciales/CS_Fut_CondCom_Precios.js</path>
+
+        
+
+
+    </files>
+</deploy>  
