@@ -185,7 +185,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 //     });
                 // }
 
-                // --- LINKS EN COLUMNAS SEPARADAS ---
+                // --- LINKS EN COLUMNAS SEPARADAS ESTILO NATURAL ---
                 if (proveedorId !== ID_JK_TORNEL) {
                     const txtLinkMetas = isEdit ? 'Configurar Metas' : 'Ver Metas';
                     const txtLinkPrecios = isEdit ? 'Configurar Precios' : 'Ver Precios';
@@ -193,13 +193,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     sublist.setSublistValue({ 
                         id: 'custpage_col_metas', 
                         line: lineIndex, 
-                        value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')" style="font-weight:bold;color:#00558F;">${txtLinkMetas}</a>` 
+                        value: `<a href="#" onclick="abrirMatrizMetas('${idRegistro}','${mode}')">${txtLinkMetas}</a>` 
                     });
 
                     sublist.setSublistValue({ 
                         id: 'custpage_col_precios', 
                         line: lineIndex, 
-                        value: `<a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')" style="font-weight:bold;color:#d9534f;">${txtLinkPrecios}</a>` 
+                        value: `<a href="#" onclick="abrirMatrizPrecios('${idRegistro}','${mode}')">${txtLinkPrecios}</a>` 
                     });
                 }
                 
