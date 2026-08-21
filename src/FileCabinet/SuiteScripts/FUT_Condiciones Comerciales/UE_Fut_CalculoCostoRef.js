@@ -46,7 +46,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             let condId = res.id;
             let marcaId = res.getValue({ name: 'custrecord_condcom_marca' });
             
-            // CORRECCIÓN: Extracción segura de texto para Pronto Pago
+            // Extracción segura de texto para Pronto Pago
             let ppText = res.getText({ name: 'custrecord_condcom_pronto_pago' });
             let ppString = ppText ? ppText : '0'; 
             let ppFloat = parseFloat(ppString.toString().replace('%', ''));
@@ -72,12 +72,12 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             }).run().each(res => {
                 let padreId = res.getValue({ name: 'custrecord_fut_meta_padre' });
                 
-                // CORRECCIÓN: Extracción segura de texto para los Rines y Descuentos
+                // Extracción segura de texto para los Rines y Descuentos
                 let rinMinText = res.getText({ name: 'custrecord_rin_min' });
-                let rinMin = parseInt(rinMinText) || 0;
-                
+                let rinMin = parseFloat(rinMinText) || 0; 
+
                 let rinMaxText = res.getText({ name: 'custrecord_rin_max' });
-                let rinMax = parseInt(rinMaxText) || 0;
+                let rinMax = parseFloat(rinMaxText) || 0;
                 
                 let descText = res.getText({ name: 'custrecord_pct_descuento' });
                 let descString = descText ? descText : '0';
@@ -110,10 +110,7 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
 
                 for (let marcaId in condicionesCache) {
                     if (condicionesCache[marcaId].id === padreId) {
-                        // Inicializamos el objeto de precios si no existe
                         if (!condicionesCache[marcaId].precios) condicionesCache[marcaId].precios = {};
-                        
-                        // Guardamos el precio especial mapeado por el ID del artículo
                         condicionesCache[marcaId].precios[itemId] = precioEspecial;
                         break;
                     }
@@ -122,102 +119,118 @@ define(['N/record', 'N/search', 'N/log'], (record, search, log) => {
             });
         }
 
-        // 3. PROCESAMOS LÍNEA POR LÍNEA
+        // 3. FIX: AGRUPACIÓN DE LÍNEAS DUPLICADAS POR ARTÍCULO
+        const articulosAgrupados = {};
+        
         for (let i = 0; i < itemCount; i++) {
-            
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-            let arribo = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
-            let costoFactura = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
+            let cantidadLinea = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
+            let costoFacturaLinea = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
 
-            if (itemId && arribo > 0 && costoFactura > 0) {
-                // Obtención del REFMXP anterior
-                let itemFields = search.lookupFields({
+            if (itemId && cantidadLinea > 0 && costoFacturaLinea > 0) {
+                if (!articulosAgrupados[itemId]) {
+                    articulosAgrupados[itemId] = { cantidadTotal: 0, costoTotalAcumulado: 0 };
+                }
+                // Sumamos la cantidad total y el monto total de la factura para promediar después
+                articulosAgrupados[itemId].cantidadTotal += cantidadLinea;
+                articulosAgrupados[itemId].costoTotalAcumulado += (cantidadLinea * costoFacturaLinea);
+            }
+        }
+
+        // 4. PROCESAMOS ÚNICAMENTE POR ARTÍCULO AGRUPADO
+        for (let itemId in articulosAgrupados) {
+            
+            let arribo = articulosAgrupados[itemId].cantidadTotal;
+            // Promedio exacto en caso de que diferentes líneas tengan diferente costo de factura
+            let costoFactura = articulosAgrupados[itemId].costoTotalAcumulado / arribo;
+
+            // Obtención del REFMXP anterior
+            let itemFields = search.lookupFields({
+                type: search.Type.ITEM,
+                id: itemId,
+                columns: ['recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
+            });
+
+            let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
+            let recordType = Array.isArray(itemFields.recordtype) ? itemFields.recordtype[0]?.value : (typeof itemFields.recordtype === 'object' ? itemFields.recordtype.value : itemFields.recordtype);
+            
+            // Extracción correcta de la marca del artículo
+            let marcaArticulo = Array.isArray(itemFields[FLD_ITEM_MARCA]) ? itemFields[FLD_ITEM_MARCA][0]?.value : (typeof itemFields[FLD_ITEM_MARCA] === 'object' ? itemFields[FLD_ITEM_MARCA].value : itemFields[FLD_ITEM_MARCA]);
+            
+            let rinRaw = itemFields[FLD_ITEM_RIN];
+            if (Array.isArray(rinRaw)) rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
+            else if (typeof rinRaw === 'object') rinRaw = rinRaw.text || rinRaw.value;
+            // Usar parseFloat permite leer rines con decimales (Ej. 17.5) sin redondearlos
+            let rinArticulo = parseFloat(rinRaw) || 0;
+
+            // Stock actual en subsidiaria
+            let stockActual = 0;
+            if (subsidiariaTx) {
+                search.create({
                     type: search.Type.ITEM,
-                    id: itemId,
-                    columns: ['recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
+                    filters: [['internalid', 'anyof', itemId], 'AND', ['inventorylocation.subsidiary', 'anyof', subsidiariaTx]],
+                    columns: [search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })]
+                }).run().each(res => {
+                    stockActual = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
+                    return true;
                 });
+            }
 
-                let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
-                let recordType = Array.isArray(itemFields.recordtype) ? itemFields.recordtype[0]?.value : (typeof itemFields.recordtype === 'object' ? itemFields.recordtype.value : itemFields.recordtype);
-                
-                // Extracción correcta de la marca del artículo
-                let marcaArticulo = Array.isArray(itemFields[FLD_ITEM_MARCA]) ? itemFields[FLD_ITEM_MARCA][0]?.value : (typeof itemFields[FLD_ITEM_MARCA] === 'object' ? itemFields[FLD_ITEM_MARCA].value : itemFields[FLD_ITEM_MARCA]);
-                
-                let rinRaw = itemFields[FLD_ITEM_RIN];
-                if (Array.isArray(rinRaw)) rinRaw = rinRaw[0]?.text || rinRaw[0]?.value; 
-                else if (typeof rinRaw === 'object') rinRaw = rinRaw.text || rinRaw.value;
-                let rinArticulo = parseInt(rinRaw) || 0;
+            // Lógica para obtener los porcentajes y precios
+            let pctProntoPago = 0;
+            let pctRebate = 0;
+            let precioEspecialActivo = 0; 
 
-                // Stock actual en subsidiaria
-                let stockActual = 0;
-                if (subsidiariaTx) {
-                    search.create({
-                        type: search.Type.ITEM,
-                        filters: [['internalid', 'anyof', itemId], 'AND', ['inventorylocation.subsidiary', 'anyof', subsidiariaTx]],
-                        columns: [search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })]
-                    }).run().each(res => {
-                        stockActual = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
-                        return true;
-                    });
+            if (marcaArticulo && condicionesCache[marcaArticulo]) {
+                const condicionActiva = condicionesCache[marcaArticulo];
+                pctProntoPago = condicionActiva.pp;
+
+                // 1. Verificamos si este artículo exacto tiene un Precio Especial
+                if (condicionActiva.precios && condicionActiva.precios[itemId]) {
+                    precioEspecialActivo = condicionActiva.precios[itemId];
                 }
 
-                // Logica para obtener los porcentajes y precios
-                let pctProntoPago = 0;
-                let pctRebate = 0;
-                let precioEspecialActivo = 0; // NUEVO
-
-                if (marcaArticulo && condicionesCache[marcaArticulo]) {
-                    const condicionActiva = condicionesCache[marcaArticulo];
-                    pctProntoPago = condicionActiva.pp;
-
-                    // 1. Verificamos si este artículo exacto tiene un Precio Especial
-                    if (condicionActiva.precios && condicionActiva.precios[itemId]) {
-                        precioEspecialActivo = condicionActiva.precios[itemId];
-                    }
-
-                    // 2. Calculamos rebaje por Metas
-                    if (rinArticulo > 0 && condicionActiva.metas.length > 0) {
-                        for (let m = 0; m < condicionActiva.metas.length; m++) {
-                            let escalon = condicionActiva.metas[m];
-                            if (rinArticulo >= escalon.min && rinArticulo <= escalon.max) {
-                                pctRebate = escalon.descuento; 
-                                break; 
-                            }
+                // 2. Calculamos rebaje por Metas
+                if (rinArticulo > 0 && condicionActiva.metas.length > 0) {
+                    for (let m = 0; m < condicionActiva.metas.length; m++) {
+                        let escalon = condicionActiva.metas[m];
+                        if (rinArticulo >= escalon.min && rinArticulo <= escalon.max) {
+                            pctRebate = escalon.descuento; 
+                            break; 
                         }
                     }
                 }
+            }
 
-                // Cálculo descuentos y costo neto
-                // Si hay un precio especial, sustituye al costo de la factura como base del cálculo
-                let costoBaseCalculo = (precioEspecialActivo > 0) ? precioEspecialActivo : costoFactura;
-                
-                let descuentoProntoPago = costoBaseCalculo * pctProntoPago;
-                let descuentoRebate = costoBaseCalculo * pctRebate;
-                let costoNeto = (costoBaseCalculo - descuentoProntoPago - descuentoRebate) * factorIVA;
+            // Cálculo descuentos y costo neto
+            let costoBaseCalculo = (precioEspecialActivo > 0) ? precioEspecialActivo : costoFactura;
+            
+            let descuentoProntoPago = costoBaseCalculo * pctProntoPago;
+            let descuentoRebate = costoBaseCalculo * pctRebate;
+            let costoNeto = (costoBaseCalculo - descuentoProntoPago - descuentoRebate) * factorIVA;
 
-                let valorArribo = arribo * costoNeto;
-                let valorStock = stockActual * costoRefAnterior; 
-                let numerador = valorArribo + valorStock;
-                let denominador = arribo + stockActual;
+            let valorArribo = arribo * costoNeto;
+            let valorStock = stockActual * costoRefAnterior; 
+            let numerador = valorArribo + valorStock;
+            let denominador = arribo + stockActual;
 
-                let costoRef = (denominador > 0) ? parseFloat((numerador / denominador).toFixed(2)) : 0;
+            let costoRef = (denominador > 0) ? parseFloat((numerador / denominador).toFixed(2)) : 0;
 
-                log.debug({
-                    title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo}`,
-                    details: `Costo Factura: ${costoFactura} | Precio Especial Usado: ${precioEspecialActivo} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
-                });
+            log.debug({
+                title: `Cálculo Costo Ref - Artículo: ${itemId} | Marca: ${marcaArticulo}`,
+                details: `Costo Factura Promediado: ${costoFactura} | Cantidad Agrupada: ${arribo} | Neto: ${costoNeto} | REFMXP NUEVO: ${costoRef}`
+            });
 
-                if (recordType) {
-                    try {
-                        record.submitFields({
-                            type: recordType,
-                            id: itemId,
-                            values: { [FLD_ITEM_REFMXP]: costoRef },
-                            options: { enableSourcing: false, ignoreMandatoryFields: true }
-                        });
-                    } catch (e) {
-                        log.error(`Error actualizando el Artículo ${itemId}`, e.message);
-                    }
+            if (recordType) {
+                try {
+                    record.submitFields({
+                        type: recordType,
+                        id: itemId,
+                        values: { [FLD_ITEM_REFMXP]: costoRef },
+                        options: { enableSourcing: false, ignoreMandatoryFields: true }
+                    });
+                } catch (e) {
+                    log.error(`Error actualizando el Artículo ${itemId}`, e.message);
                 }
             }
         }
