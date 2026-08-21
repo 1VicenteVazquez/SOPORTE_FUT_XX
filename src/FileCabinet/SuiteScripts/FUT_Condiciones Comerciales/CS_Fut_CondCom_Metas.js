@@ -38,7 +38,7 @@ define(['N/url', 'N/currentRecord'], (url, currentRecord) => {
             const rinMax = rec.getCurrentSublistValue({ sublistId: sublistName, fieldId: 'custpage_col_rin_max' });
             
             if (rinMin && rinMax) {
-                if (parseInt(rinMin) > parseInt(rinMax)) {
+                if (parseFloat(rinMin) > parseFloat(rinMax)) {
                     alert('Error: El Rin Mínimo no puede ser mayor al Rin Máximo.');
                     return false; 
                 }
