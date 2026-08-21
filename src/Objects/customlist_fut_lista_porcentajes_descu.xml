@@ -1,0 +1,212 @@
+<customlist scriptid="customlist_fut_lista_porcentajes_descu">
+  <description>Lista que guarda porcentajes  usados para descuentos sobre las condiciones comerciales.</description>
+  <isinactive>F</isinactive>
+  <isordered>T</isordered>
+  <name>Lista_Porcentajes_Descuentos</name>
+  <customvalues>
+    <customvalue scriptid="val_24122393_4672042_sb1_538">
+      <isinactive>F</isinactive>
+      <value>0.0</value>
+    </customvalue>
+    <customvalue scriptid="val_24122394_4672042_sb1_638">
+      <isinactive>F</isinactive>
+      <value>0.1</value>
+    </customvalue>
+    <customvalue scriptid="val_24122395_4672042_sb1_723">
+      <isinactive>F</isinactive>
+      <value>0.2</value>
+    </customvalue>
+    <customvalue scriptid="val_24122396_4672042_sb1_572">
+      <isinactive>F</isinactive>
+      <value>0.3</value>
+    </customvalue>
+    <customvalue scriptid="val_24122397_4672042_sb1_844">
+      <isinactive>F</isinactive>
+      <value>0.4</value>
+    </customvalue>
+    <customvalue scriptid="val_24122398_4672042_sb1_127">
+      <isinactive>F</isinactive>
+      <value>0.5</value>
+    </customvalue>
+    <customvalue scriptid="val_24122399_4672042_sb1_462">
+      <isinactive>F</isinactive>
+      <value>0.6</value>
+    </customvalue>
+    <customvalue scriptid="val_24122400_4672042_sb1_289">
+      <isinactive>F</isinactive>
+      <value>0.7</value>
+    </customvalue>
+    <customvalue scriptid="val_24122401_4672042_sb1_671">
+      <isinactive>F</isinactive>
+      <value>0.8</value>
+    </customvalue>
+    <customvalue scriptid="val_24122402_4672042_sb1_814">
+      <isinactive>F</isinactive>
+      <value>0.9</value>
+    </customvalue>
+    <customvalue scriptid="val_24122403_4672042_sb1_879">
+      <isinactive>F</isinactive>
+      <value>1.0</value>
+    </customvalue>
+    <customvalue scriptid="val_24122404_4672042_sb1_678">
+      <isinactive>F</isinactive>
+      <value>1.1</value>
+    </customvalue>
+    <customvalue scriptid="val_24122405_4672042_sb1_940">
+      <isinactive>F</isinactive>
+      <value>1.2</value>
+    </customvalue>
+    <customvalue scriptid="val_24122406_4672042_sb1_201">
+      <isinactive>F</isinactive>
+      <value>1.3</value>
+    </customvalue>
+    <customvalue scriptid="val_24122407_4672042_sb1_258">
+      <isinactive>F</isinactive>
+      <value>1.4</value>
+    </customvalue>
+    <customvalue scriptid="val_24122408_4672042_sb1_894">
+      <isinactive>F</isinactive>
+      <value>1.5</value>
+    </customvalue>
+    <customvalue scriptid="val_24122409_4672042_sb1_165">
+      <isinactive>F</isinactive>
+      <value>1.6</value>
+    </customvalue>
+    <customvalue scriptid="val_24122410_4672042_sb1_209">
+      <isinactive>F</isinactive>
+      <value>1.7</value>
+    </customvalue>
+    <customvalue scriptid="val_24122411_4672042_sb1_772">
+      <isinactive>F</isinactive>
+      <value>1.8</value>
+    </customvalue>
+    <customvalue scriptid="val_24122412_4672042_sb1_838">
+      <isinactive>F</isinactive>
+      <value>1.9</value>
+    </customvalue>
+    <customvalue scriptid="val_24122413_4672042_sb1_891">
+      <isinactive>F</isinactive>
+      <value>2.0</value>
+    </customvalue>
+    <customvalue scriptid="val_24122414_4672042_sb1_254">
+      <isinactive>F</isinactive>
+      <value>2.1</value>
+    </customvalue>
+    <customvalue scriptid="val_24122415_4672042_sb1_562">
+      <isinactive>F</isinactive>
+      <value>2.2</value>
+    </customvalue>
+    <customvalue scriptid="val_24122416_4672042_sb1_405">
+      <isinactive>F</isinactive>
+      <value>2.3</value>
+    </customvalue>
+    <customvalue scriptid="val_24122417_4672042_sb1_293">
+      <isinactive>F</isinactive>
+      <value>2.4</value>
+    </customvalue>
+    <customvalue scriptid="val_24122418_4672042_sb1_768">
+      <isinactive>F</isinactive>
+      <value>2.5</value>
+    </customvalue>
+    <customvalue scriptid="val_24122419_4672042_sb1_309">
+      <isinactive>F</isinactive>
+      <value>2.6</value>
+    </customvalue>
+    <customvalue scriptid="val_24122420_4672042_sb1_505">
+      <isinactive>F</isinactive>
+      <value>2.7</value>
+    </customvalue>
+    <customvalue scriptid="val_24122421_4672042_sb1_839">
+      <isinactive>F</isinactive>
+      <value>2.8</value>
+    </customvalue>
+    <customvalue scriptid="val_24122422_4672042_sb1_679">
+      <isinactive>F</isinactive>
+      <value>2.9</value>
+    </customvalue>
+    <customvalue scriptid="val_24122423_4672042_sb1_104">
+      <isinactive>F</isinactive>
+      <value>3.0</value>
+    </customvalue>
+    <customvalue scriptid="val_24122424_4672042_sb1_240">
+      <isinactive>F</isinactive>
+      <value>3.1</value>
+    </customvalue>
+    <customvalue scriptid="val_24122425_4672042_sb1_784">
+      <isinactive>F</isinactive>
+      <value>3.2</value>
+    </customvalue>
+    <customvalue scriptid="val_24122426_4672042_sb1_440">
+      <isinactive>F</isinactive>
+      <value>3.3</value>
+    </customvalue>
+    <customvalue scriptid="val_24122427_4672042_sb1_580">
+      <isinactive>F</isinactive>
+      <value>3.4</value>
+    </customvalue>
+    <customvalue scriptid="val_24122428_4672042_sb1_131">
+      <isinactive>F</isinactive>
+      <value>3.5</value>
+    </customvalue>
+    <customvalue scriptid="val_24122429_4672042_sb1_260">
+      <isinactive>F</isinactive>
+      <value>3.6</value>
+    </customvalue>
+    <customvalue scriptid="val_24122430_4672042_sb1_594">
+      <isinactive>F</isinactive>
+      <value>3.7</value>
+    </customvalue>
+    <customvalue scriptid="val_24122431_4672042_sb1_345">
+      <isinactive>F</isinactive>
+      <value>3.8</value>
+    </customvalue>
+    <customvalue scriptid="val_24122432_4672042_sb1_399">
+      <isinactive>F</isinactive>
+      <value>3.9</value>
+    </customvalue>
+    <customvalue scriptid="val_24122433_4672042_sb1_602">
+      <isinactive>F</isinactive>
+      <value>4.0</value>
+    </customvalue>
+    <customvalue scriptid="val_24122434_4672042_sb1_109">
+      <isinactive>F</isinactive>
+      <value>4.1</value>
+    </customvalue>
+    <customvalue scriptid="val_24122435_4672042_sb1_902">
+      <isinactive>F</isinactive>
+      <value>4.2</value>
+    </customvalue>
+    <customvalue scriptid="val_24122436_4672042_sb1_811">
+      <isinactive>F</isinactive>
+      <value>4.3</value>
+    </customvalue>
+    <customvalue scriptid="val_24122437_4672042_sb1_887">
+      <isinactive>F</isinactive>
+      <value>4.4</value>
+    </customvalue>
+    <customvalue scriptid="val_24122438_4672042_sb1_631">
+      <isinactive>F</isinactive>
+      <value>4.5</value>
+    </customvalue>
+    <customvalue scriptid="val_24122439_4672042_sb1_181">
+      <isinactive>F</isinactive>
+      <value>4.6</value>
+    </customvalue>
+    <customvalue scriptid="val_24122440_4672042_sb1_401">
+      <isinactive>F</isinactive>
+      <value>4.7</value>
+    </customvalue>
+    <customvalue scriptid="val_24122441_4672042_sb1_892">
+      <isinactive>F</isinactive>
+      <value>4.8</value>
+    </customvalue>
+    <customvalue scriptid="val_24122442_4672042_sb1_674">
+      <isinactive>F</isinactive>
+      <value>4.9</value>
+    </customvalue>
+    <customvalue scriptid="val_24122443_4672042_sb1_690">
+      <isinactive>F</isinactive>
+      <value>5.0</value>
+    </customvalue>
+  </customvalues>
+</customlist>
