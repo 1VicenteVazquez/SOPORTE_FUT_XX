@@ -12,12 +12,12 @@
       <allemployees>F</allemployees>
       <allpartners>F</allpartners>
       <allroles>F</allroles>
-      <audslctrole></audslctrole>
+      <audslctrole>ADMINISTRATOR</audslctrole>
       <eventtype></eventtype>
       <isdeployed>T</isdeployed>
       <isonline>F</isonline>
       <loglevel>DEBUG</loglevel>
-      <runasrole></runasrole>
+      <runasrole>ADMINISTRATOR</runasrole>
       <status>TESTING</status>
       <title>FUT - SL Panel Condiciones Comerciales</title>
     </scriptdeployment>
