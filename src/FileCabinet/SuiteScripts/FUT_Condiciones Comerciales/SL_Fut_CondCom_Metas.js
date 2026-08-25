@@ -58,14 +58,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldActivo = sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
         fldActivo.updateDisplayType({ displayType: displayModo });
 
-        const fldNombre = sublist.addField({ id: 'custpage_col_nombre', type: serverWidget.FieldType.TEXT, label: 'Segmento' });
+        const fldNombre = sublist.addField({ 
+            id: 'custpage_col_nombre', 
+            type: serverWidget.FieldType.SELECT, 
+            label: 'Segmento',
+            source: 'customlist_fut_lista_tipo_segmento'
+        });
         fldNombre.updateDisplayType({ displayType: displayModo });
-        
-        // const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.INTEGER, label: 'Rin Mínimo' });
-        // fldRinMin.updateDisplayType({ displayType: displayModo });
-        
-        // const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.INTEGER, label: 'Rin Máximo' });
-        // fldRinMax.updateDisplayType({ displayType: displayModo });
         
 
         // Cambiamos el tipo a SELECT y le agregamos el 'source' hacia tu lista personalizada
@@ -197,7 +196,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
                     
                     // CAMBIO CLAVE: Guardamos en el campo personalizado
-                    if(nombreMeta) nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: nombreMeta });
+                    if(nombreMeta) {
+                        nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: Number(nombreMeta) });
+                    }
                     
                     if(rinMin) nuevoRegistro.setValue({ fieldId: FLD_RIN_MIN, value: rinMin });
                     if(rinMax) nuevoRegistro.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
