@@ -49,7 +49,7 @@ define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog)
                     if (articulosActivos.includes(itemId)) {
                         dialog.alert({
                             title: 'Restricción de Negocio',
-                            message: `El artículo <b>${itemText}</b> está marcado como "Activo" más de una vez.<br><br>Solo puedes tener <b>UN</b> precio especial activo por artículo. Por favor, desactiva o elimina la línea duplicada para poder guardar.`
+                            message: `El artículo <b>${itemText}</b> está marcado como "Activo" más de una vez.<br><br>Solo puedes tener <b>un precio especial activo por artículo.</b> Por favor, desactiva o elimina la línea duplicada para poder guardar.`
                         });
                         return false; // Bloquea el guardado
                     }
