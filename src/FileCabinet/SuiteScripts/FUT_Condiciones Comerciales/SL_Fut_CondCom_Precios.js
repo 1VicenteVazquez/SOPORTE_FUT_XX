@@ -64,7 +64,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldArticulo.updateDisplayType({ displayType: displayModo });
         
         // --- 3. DESCRIPCIÓN ---
-        const fldDesc = sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXT, label: 'Descripción' });
+        const fldDesc = sublist.addField({ id: 'custpage_col_descripcion', type: serverWidget.FieldType.TEXTAREA, label: 'Descripción' });
         fldDesc.updateDisplayType({ displayType: displayModo });
 
         // --- 4. FECHA DE CREACIÓN ---
