@@ -56,6 +56,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         
         const sublist = form.addSublist({ id: 'custpage_sublist_precios', type: tipoSublista, label: 'Artículos con Precio Especial' });
         
+        // --- NUEVA COLUMNA OCULTA PARA EL ID DEL REGISTRO ---
+        const fldPrecioId = sublist.addField({ id: 'custpage_col_precio_id', type: serverWidget.FieldType.TEXT, label: 'Internal ID' });
+        fldPrecioId.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+
         // --- 1. ACTIVO ---
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
@@ -114,9 +118,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: RECORD_PRECIOS,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                columns: [FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO, FLD_DESCRIPCION, 'created', 'lastmodified']
+                // Agregamos 'internalid' a las columnas extraídas
+                columns: ['internalid', FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO, FLD_DESCRIPCION, 'created', 'lastmodified']
             }).run().each(res => {
-                
+                // Guardamos el ID en la columna oculta
+                sublist.setSublistValue({ id: 'custpage_col_precio_id', line: line, value: res.id });
+
                 let estaActivo = res.getValue(FLD_ACTIVO);
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
                 
@@ -169,23 +176,47 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (registroId) {
             try {
-                search.create({ type: RECORD_PRECIOS, filters: [[FLD_PADRE, 'anyof', registroId]] }).run().each(res => {
-                    record.delete({ type: RECORD_PRECIOS, id: res.id });
+                const lineCount = req.getLineCount({ group: 'custpage_sublist_precios' });
+                let submittedIds = [];
+
+                // PASO 1: Recolectar todos los IDs que vienen de la pantalla
+                for (let i = 0; i < lineCount; i++) {
+                    let precioId = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_precio_id', line: i });
+                    if (precioId) submittedIds.push(precioId);
+                }
+
+                // PASO 2: Borrar únicamente los registros que ya no están en la pantalla
+                search.create({
+                    type: RECORD_PRECIOS,
+                    filters: [[FLD_PADRE, 'anyof', registroId]]
+                }).run().each(res => {
+                    if (!submittedIds.includes(res.id)) {
+                        record.delete({ type: RECORD_PRECIOS, id: res.id });
+                    }
                     return true;
                 });
 
-                const lineCount = req.getLineCount({ group: 'custpage_sublist_precios' });
-                
+                // PASO 3: Actualizar existentes y Crear nuevos
                 for (let i = 0; i < lineCount; i++) {
+                    const precioId = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_precio_id', line: i });
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
                     const articulo = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_articulo', line: i });
                     const descripcion = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_descripcion', line: i });
                     const precio = req.getSublistValue({ group: 'custpage_sublist_precios', name: 'custpage_col_precio', line: i });
 
-                    if(articulo && precio) {
-                        const nuevoRegistro = record.create({ type: RECORD_PRECIOS });
-                        nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
+                    if (articulo && precio) {
+                        let nuevoRegistro;
+
+                        // Si la línea trae un ID, cargamos el registro existente (UPDATE)
+                        if (precioId) {
+                            nuevoRegistro = record.load({ type: RECORD_PRECIOS, id: precioId });
+                        } else {
+                            // Si no trae ID, significa que el usuario agregó la línea (INSERT)
+                            nuevoRegistro = record.create({ type: RECORD_PRECIOS });
+                            nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
+                        }
+
                         nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
                         nuevoRegistro.setValue({ fieldId: FLD_ARTICULO, value: articulo });
                         

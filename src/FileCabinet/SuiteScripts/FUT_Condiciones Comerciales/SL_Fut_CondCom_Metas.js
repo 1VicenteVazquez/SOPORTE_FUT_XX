@@ -54,7 +54,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const tipoSublista = isEdit ? serverWidget.SublistType.INLINEEDITOR : serverWidget.SublistType.LIST;
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Segmento de Rin' });
-        
+
+        // CAMBIO CLAVE: Columna oculta para guardar el Internal ID de cada línea
+        const fldMetaId = sublist.addField({ id: 'custpage_col_meta_id', type: serverWidget.FieldType.TEXT, label: 'Internal ID' });
+        fldMetaId.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+
         const fldActivo = sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
         fldActivo.updateDisplayType({ displayType: displayModo });
 
@@ -65,15 +69,12 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             source: 'customlist_fut_lista_tipo_segmento'
         });
         fldNombre.updateDisplayType({ displayType: displayModo });
-        
 
-        // Cambiamos el tipo a SELECT y le agregamos el 'source' hacia tu lista personalizada
         const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo', source: 'customlist_nso_list_diametro_rin' });
         fldRinMin.updateDisplayType({ displayType: displayModo });
-        
+
         const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo', source: 'customlist_nso_list_diametro_rin' });
         fldRinMax.updateDisplayType({ displayType: displayModo });
-
 
         const fldMeta = sublist.addField({
             id: 'custpage_col_meta_pct',
@@ -81,15 +82,10 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             label: 'Meta a Alcanzar (%)'
         });
         fldMeta.updateDisplayType({ displayType: displayModo });
-        
+
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
         fldObj.updateDisplayType({ displayType: displayModo });
-        
-        // const fldDesc = sublist.addField({ id: 'custpage_col_descuento', type: serverWidget.FieldType.PERCENT, label: 'Descuento (%)' });
-        // fldDesc.updateDisplayType({ displayType: displayModo });
 
-
-        // Cambiamos el tipo a SELECT y enlazamos la lista personalizada
         const fldDesc = sublist.addField({ 
             id: 'custpage_col_descuento', 
             type: serverWidget.FieldType.SELECT, 
@@ -97,7 +93,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             source: 'customlist_fut_lista_porcentajes_descu' 
         });
         fldDesc.updateDisplayType({ displayType: displayModo });
-
 
         if (isEdit) {
             fldNombre.isMandatory = true;
@@ -113,31 +108,32 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: RECORD_META,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                // CAMBIO CLAVE: Buscamos el campo personalizado en lugar de 'name'
-                columns: [FLD_ACTIVO,FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
+                // Agregamos 'internalid' a las columnas extraídas
+                columns: ['internalid', FLD_ACTIVO, FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
             }).run().each(res => {
-                // Extraemos y pintamos el checkbox ---
+                // Guardamos el ID en la columna oculta
+                sublist.setSublistValue({ id: 'custpage_col_meta_id', line: line, value: res.id });
+
                 let estaActivo = res.getValue(FLD_ACTIVO);
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
 
-                // Extraemos el valor del campo personalizado
                 let nombre = res.getValue(FLD_NOMBRE_ESCALA);
                 if (nombre) sublist.setSublistValue({ id: 'custpage_col_nombre', line: line, value: nombre });
 
                 sublist.setSublistValue({ id: 'custpage_col_rin_min', line: line, value: res.getValue(FLD_RIN_MIN) || 0 });
                 sublist.setSublistValue({ id: 'custpage_col_rin_max', line: line, value: res.getValue(FLD_RIN_MAX) || 0 });
-                
+
                 let meta = res.getValue(FLD_META_PCT);
                 if (meta) {
                     const metaFormateada = isEdit ? meta : (parseFloat(meta).toFixed(1) + '%');
                     sublist.setSublistValue({ id: 'custpage_col_meta_pct', line: line, value: metaFormateada });
                 }
-                
+
                 sublist.setSublistValue({ id: 'custpage_col_objetivo', line: line, value: res.getValue(FLD_OBJETIVO) || 0 });
-                
+
                 let descuento = res.getValue(FLD_DESCUENTO);
                 if(descuento) sublist.setSublistValue({ id: 'custpage_col_descuento', line: line, value: descuento });
-                
+
                 line++;
                 return true;
             });
@@ -170,16 +166,29 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         if (registroId) {
             try {
+                const lineCount = req.getLineCount({ group: 'custpage_sublist_metas' });
+                let submittedIds = [];
+
+                // PASO 1: Recolectar todos los IDs que vienen en la pantalla
+                for (let i = 0; i < lineCount; i++) {
+                    let metaId = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_meta_id', line: i });
+                    if (metaId) submittedIds.push(metaId);
+                }
+
+                // PASO 2: Borrar de la Base de Datos los registros que el usuario eliminó en la pantalla
                 search.create({
                     type: RECORD_META,
                     filters: [[FLD_PADRE, 'anyof', registroId]]
                 }).run().each(res => {
-                    record.delete({ type: RECORD_META, id: res.id });
+                    if (!submittedIds.includes(res.id)) {
+                        record.delete({ type: RECORD_META, id: res.id });
+                    }
                     return true;
                 });
 
-                const lineCount = req.getLineCount({ group: 'custpage_sublist_metas' });
+                // PASO 3: Actualizar los existentes o Crear los nuevos
                 for (let i = 0; i < lineCount; i++) {
+                    const metaId = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_meta_id', line: i });
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_activo', line: i });
                     const isActivo = (activoVal === 'T' || activoVal === 'true' || activoVal === true);
                     const nombreMeta = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_nombre', line: i });
@@ -189,26 +198,25 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     const objetivo = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_objetivo', line: i });
                     const descuento = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_descuento', line: i });
 
-                    const nuevoRegistro = record.create({ type: RECORD_META });
-                    nuevoRegistro.setValue({ fieldId: FLD_PADRE, value: registroId });
+                    let registroMeta;
 
-                    //Guardamos el check ---
-                    nuevoRegistro.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
-                    
-                    // CAMBIO CLAVE: Guardamos en el campo personalizado
-                    if(nombreMeta) {
-                        nuevoRegistro.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: Number(nombreMeta) });
+                    // Si ya tiene un ID, cargamos el registro (UPDATE). Si no, lo creamos (INSERT).
+                    if (metaId) {
+                        registroMeta = record.load({ type: RECORD_META, id: metaId });
+                    } else {
+                        registroMeta = record.create({ type: RECORD_META });
+                        registroMeta.setValue({ fieldId: FLD_PADRE, value: registroId });
                     }
-                    
-                    if(rinMin) nuevoRegistro.setValue({ fieldId: FLD_RIN_MIN, value: rinMin });
-                    if(rinMax) nuevoRegistro.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
-                    if(metaPct) nuevoRegistro.setValue({ fieldId: FLD_META_PCT, value: parseFloat(metaPct) });
-                    if(objetivo) nuevoRegistro.setValue({ fieldId: FLD_OBJETIVO, value: objetivo });
-                    // if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: parseFloat(descuento) });
-                    // Guardamos directamente el Internal ID de la lista seleccionada
-                    if(descuento) nuevoRegistro.setValue({ fieldId: FLD_DESCUENTO, value: descuento });
-                    
-                    nuevoRegistro.save({ ignoreMandatoryFields: true });
+
+                    registroMeta.setValue({ fieldId: FLD_ACTIVO, value: isActivo });
+                    if(nombreMeta) registroMeta.setValue({ fieldId: FLD_NOMBRE_ESCALA, value: Number(nombreMeta) });
+                    if(rinMin) registroMeta.setValue({ fieldId: FLD_RIN_MIN, value: rinMin });
+                    if(rinMax) registroMeta.setValue({ fieldId: FLD_RIN_MAX, value: rinMax });
+                    if(metaPct) registroMeta.setValue({ fieldId: FLD_META_PCT, value: parseFloat(metaPct) });
+                    if(objetivo) registroMeta.setValue({ fieldId: FLD_OBJETIVO, value: objetivo });
+                    if(descuento) registroMeta.setValue({ fieldId: FLD_DESCUENTO, value: descuento });
+
+                    registroMeta.save({ ignoreMandatoryFields: true });
                 }
             } catch (e) {
                 log.error('Error procesando Rebates/Metas', e.message);
