@@ -125,6 +125,6 @@ define(['N/url', 'N/currentRecord', 'N/ui/dialog'], (url, currentRecord, dialog)
         cancelarEdicion: cancelarEdicion,
         buscarCondiciones: buscarCondiciones,
         saveRecord: saveRecord,
-        abrirMatrizPrecios: abrirMatrizPrecios // CORRECCIÓN APLICADA AQUÍ
+        abrirMatrizPrecios: abrirMatrizPrecios
     };
 });
