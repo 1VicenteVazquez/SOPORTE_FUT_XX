@@ -93,12 +93,33 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldCondicion.updateDisplayType({ displayType: displayModo });
         if (isEdit) fldCondicion.isMandatory = true; 
         
-        sublist.addField({ 
+
+//PERMITE AGREGAR UN VALOR -NEW- A LA SUBLISTA
+        // sublist.addField({ 
+        //     id: 'custpage_col_pp', 
+        //     type: serverWidget.FieldType.SELECT, 
+        //     label: 'Pronto Pago (%)', 
+        //     source: 'customlist_fut_lista_porcentajes_descu' 
+        // }).updateDisplayType({ displayType: displayModo });
+
+
+        const fldPP = sublist.addField({ 
             id: 'custpage_col_pp', 
             type: serverWidget.FieldType.SELECT, 
-            label: 'Pronto Pago (%)', 
-            source: 'customlist_fut_lista_porcentajes_descu' 
+            label: 'Pronto Pago (%)'
         }).updateDisplayType({ displayType: displayModo });
+
+        // Opción vacía para poder dejar el campo sin seleccionar
+        fldPP.addSelectOption({ value: '', text: '' });
+
+        // Poblamos manualmente desde la lista personalizada (sin "- New -")
+        search.create({
+            type: 'customlist_fut_lista_porcentajes_descu',
+            columns: ['name']
+        }).run().each((res) => {
+            fldPP.addSelectOption({ value: res.id, text: res.getValue('name') });
+            return true;
+        });
 
         // --- CONSTANTES DE PROVEEDORES ESPECIALES ---
         const ID_JK_TORNEL = '1978'; 
