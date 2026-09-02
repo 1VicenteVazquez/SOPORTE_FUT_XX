@@ -70,11 +70,30 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         });
         fldNombre.updateDisplayType({ displayType: displayModo });
 
-        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo', source: 'customlist_nso_list_diametro_rin' });
-        fldRinMin.updateDisplayType({ displayType: displayModo });
+        // const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo', source: 'customlist_nso_list_diametro_rin' });
+        // fldRinMin.updateDisplayType({ displayType: displayModo });
 
-        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo', source: 'customlist_nso_list_diametro_rin' });
+        // const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo', source: 'customlist_nso_list_diametro_rin' });
+        // fldRinMax.updateDisplayType({ displayType: displayModo });
+
+
+        const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo' });
+        fldRinMin.updateDisplayType({ displayType: displayModo });
+        fldRinMin.addSelectOption({ value: '', text: '' });
+
+        const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo' });
         fldRinMax.updateDisplayType({ displayType: displayModo });
+        fldRinMax.addSelectOption({ value: '', text: '' });
+
+        // Poblamos ambos dropdowns con la misma búsqueda, ya que comparten la lista
+        search.create({
+            type: 'customlist_nso_list_diametro_rin',
+            columns: ['name']
+        }).run().each((res) => {
+            fldRinMin.addSelectOption({ value: res.id, text: res.getValue('name') });
+            fldRinMax.addSelectOption({ value: res.id, text: res.getValue('name') });
+            return true;
+        });
 
         const fldMeta = sublist.addField({
             id: 'custpage_col_meta_pct',
@@ -86,13 +105,29 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
         fldObj.updateDisplayType({ displayType: displayModo });
 
+        // const fldDesc = sublist.addField({ 
+        //     id: 'custpage_col_descuento', 
+        //     type: serverWidget.FieldType.SELECT, 
+        //     label: 'Descuento (%)', 
+        //     source: 'customlist_fut_lista_porcentajes_descu' 
+        // });
+        // fldDesc.updateDisplayType({ displayType: displayModo });
+        
         const fldDesc = sublist.addField({ 
             id: 'custpage_col_descuento', 
             type: serverWidget.FieldType.SELECT, 
-            label: 'Descuento (%)', 
-            source: 'customlist_fut_lista_porcentajes_descu' 
+            label: 'Descuento (%)'
         });
         fldDesc.updateDisplayType({ displayType: displayModo });
+        fldDesc.addSelectOption({ value: '', text: '' });
+
+        search.create({
+            type: 'customlist_fut_lista_porcentajes_descu',
+            columns: ['name']
+        }).run().each((res) => {
+            fldDesc.addSelectOption({ value: res.id, text: res.getValue('name') });
+            return true;
+        });
 
         if (isEdit) {
             fldNombre.isMandatory = true;
