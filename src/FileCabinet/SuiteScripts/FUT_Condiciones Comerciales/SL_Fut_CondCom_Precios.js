@@ -74,6 +74,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
         fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
 
+        const fldCreador = sublist.addField({ id: 'custpage_col_creador', type: serverWidget.FieldType.TEXT, label: 'Creado Por' });
+        fldCreador.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
         const fldPrecio = sublist.addField({ id: 'custpage_col_precio', type: serverWidget.FieldType.CURRENCY, label: 'Precio Especial' });
         fldPrecio.updateDisplayType({ displayType: displayModo });
 
@@ -108,7 +111,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: RECORD_PRECIOS,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                columns: ['internalid', FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO, FLD_DESCRIPCION, 'created', 'lastmodified']
+                columns: ['internalid', FLD_ACTIVO, FLD_ARTICULO, FLD_PRECIO, FLD_DESCRIPCION, 'created', 'lastmodified', 'owner']
             }).run().each(res => {
                 // Guardamos el ID en la columna oculta
                 sublist.setSublistValue({ id: 'custpage_col_precio_id', line: line, value: res.id });
@@ -129,6 +132,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 
                 let modificado = res.getValue('lastmodified');
                 if (modificado) sublist.setSublistValue({ id: 'custpage_col_modificado', line: line, value: modificado });
+
+                let creadorNombre = res.getText('owner') || res.getValue('owner') || '---';
+                sublist.setSublistValue({ id: 'custpage_col_creador', line: line, value: creadorNombre });
 
                 let precio = res.getValue(FLD_PRECIO);
                 if (precio) sublist.setSublistValue({ id: 'custpage_col_precio', line: line, value: precio });

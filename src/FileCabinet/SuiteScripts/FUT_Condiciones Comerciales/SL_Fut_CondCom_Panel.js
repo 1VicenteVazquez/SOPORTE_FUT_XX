@@ -87,6 +87,9 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
         fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
 
+        const fldCreador = sublist.addField({ id: 'custpage_col_creador', type: serverWidget.FieldType.TEXT, label: 'Creado Por' });
+        fldCreador.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
         sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' }).updateDisplayType({ displayType: displayModo });
         
         const fldCondicion = sublist.addField({ id: 'custpage_col_condicion', type: serverWidget.FieldType.TEXT, label: 'Nombre de la Condición' });
@@ -153,7 +156,7 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: CUSTOM_RECORD_PADRE,
                 filters: [[FIELD_PROVEEDOR, 'anyof', proveedorId], 'AND', [FIELD_MARCA, 'anyof', marcaId]],
-                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified']
+                columns: ['internalid', FIELD_ACTIVO, FIELD_NOMBRE, FIELD_PRONTO_PAGO, FIELD_PROVEEDOR, FIELD_MARCA, 'created', 'lastmodified', 'owner']
             }).run().each(res => {
                 
                 const idRegistro = res.id;
@@ -165,10 +168,13 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 const fechaCreacion = res.getValue('created') || '';
                 const fechaModificacion = res.getValue('lastmodified') || '';
 
+                const creadorNombre = res.getText('owner') || res.getValue('owner') || '---';
+
                 const estaActivo = res.getValue(FIELD_ACTIVO);
                 const nombre = res.getValue(FIELD_NOMBRE) || res.getText(FIELD_NOMBRE) || 'Sin Nombre';
                 const prontoPago = res.getValue(FIELD_PRONTO_PAGO);
 
+                sublist.setSublistValue({ id: 'custpage_col_creador', line: lineIndex, value: creadorNombre });
                 sublist.setSublistValue({ id: 'custpage_col_id', line: lineIndex, value: idRegistro });
                 sublist.setSublistValue({ id: 'custpage_col_prov_txt', line: lineIndex, value: provTxt });
                 sublist.setSublistValue({ id: 'custpage_col_marca_txt', line: lineIndex, value: marcaTxt });
