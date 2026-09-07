@@ -4,8 +4,9 @@
  * 
  * UE_Fut_TriggerCalculoCosto.js
  */
-define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
-    
+define(['N/task', 'N/search', 'N/log'], 
+(task, search, log) => {
+
     const beforeSubmit = (context) => {
         if (context.type !== context.UserEventType.CREATE) return;
 
@@ -15,7 +16,7 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
         
         if (itemCount === 0) return;
 
-        // 1. RECOLECTAR IDs ÚNICOS (Para la Búsqueda Masiva)
+        // 1. OBTENER LISTA DE ITEMS ÚNICOS
         const itemIds = [];
         for (let i = 0; i < itemCount; i++) {
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
@@ -26,8 +27,7 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
 
         if (itemIds.length === 0) return;
 
-        // 2. OBTENER STOCK PREVIO DE CADA ITEM EN LA SUBSIDIARIA (Excluyendo Ubicaciones Virtuales)
-        // Solo cuesta 10 puntos de gobernanza
+        // 2. OBTENER STOCK PREVIO
         const stockSnapshot = {};
         if (subsidiariaTx) {
             search.create({
@@ -37,7 +37,7 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
                     'AND',
                     ['inventorylocation.subsidiary', 'anyof', subsidiariaTx],
                     'AND',
-                    ['inventorylocation.custrecord_fut_ubicacion_virtual', 'is', 'F'] // Excluye ubicaciones virtuales
+                    ['inventorylocation.custrecord_fut_ubicacion_virtual', 'is', 'F']
                 ],
                 columns: [
                     search.createColumn({ name: 'internalid', summary: search.Summary.GROUP }),
@@ -51,12 +51,11 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
             });
         }
 
-        // 3. ESTAMPAR LA FOTOGRAFÍA EN CADA LÍNEA
+        // 3. ACTUALIZAR SUBLISTA CON STOCK PREVIO
         for (let i = 0; i < itemCount; i++) {
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
             let stockPrevio = stockSnapshot[itemId] || 0;
             
-            // Si el stock previo es negativo, lo ajustamos a cero para evitar inconsistencias
             if (stockPrevio < 0) stockPrevio = 0; 
             
             newRecord.setSublistValue({
@@ -67,12 +66,8 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
             });
         }
 
-        // 4. MARCAMOS EL REGISTRO COMO "EN PROCESO" 
-        // Esto le indica al Client Script que debe empezar a monitorear el resultado del cálculo
+        // 4. MARCAMOS EL REGISTRO
         newRecord.setValue({ fieldId: 'custbody_fut_status_calculo', value: 'PROCESANDO' });
-         // LOG DE DIAGNÓSTICO
-        log.debug('beforeSubmit - Status seteado', 
-            'Valor asignado: ' + newRecord.getValue({ fieldId: 'custbody_fut_status_calculo' }));
     };
 
     const afterSubmit = (context) => {
@@ -89,12 +84,12 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
                     'custscript_fut_receipt_id': recordId 
                 }
             });
-            let taskId = mrTask.submit();
-            log.audit('MR Iniciado', `Task: ${taskId} | Recepción: ${recordId}`);
+            mrTask.submit();
         } catch (e) {
             log.error('Error al lanzar Map/Reduce', e.message);
         }
     };
 
+    // 5. RETORNAMOS LAS FUNCIONES
     return { beforeSubmit, afterSubmit };
 });
