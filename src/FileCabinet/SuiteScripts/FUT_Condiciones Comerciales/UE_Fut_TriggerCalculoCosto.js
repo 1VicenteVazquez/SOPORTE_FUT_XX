@@ -66,6 +66,13 @@ define(['N/task', 'N/search', 'N/log'], (task, search, log) => {
                 value: stockPrevio
             });
         }
+
+        // 4. MARCAMOS EL REGISTRO COMO "EN PROCESO" 
+        // Esto le indica al Client Script que debe empezar a monitorear el resultado del cálculo
+        newRecord.setValue({ fieldId: 'custbody_fut_status_calculo', value: 'PROCESANDO' });
+         // LOG DE DIAGNÓSTICO
+        log.debug('beforeSubmit - Status seteado', 
+            'Valor asignado: ' + newRecord.getValue({ fieldId: 'custbody_fut_status_calculo' }));
     };
 
     const afterSubmit = (context) => {
