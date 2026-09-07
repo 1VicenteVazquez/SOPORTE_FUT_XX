@@ -55,9 +55,18 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         const displayModo = isEdit ? serverWidget.FieldDisplayType.ENTRY : serverWidget.FieldDisplayType.INLINE;
         const sublist = form.addSublist({ id: 'custpage_sublist_metas', type: tipoSublista, label: 'Segmento de Rin' });
 
-        // CAMBIO CLAVE: Columna oculta para guardar el Internal ID de cada línea
+        // Columna oculta para guardar el Internal ID de cada línea
         const fldMetaId = sublist.addField({ id: 'custpage_col_meta_id', type: serverWidget.FieldType.TEXT, label: 'Internal ID' });
         fldMetaId.updateDisplayType({ displayType: serverWidget.FieldDisplayType.HIDDEN });
+
+        const fldCreado = sublist.addField({ id: 'custpage_col_creado', type: serverWidget.FieldType.TEXT, label: 'Fecha de Creación' });
+        fldCreado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        const fldModificado = sublist.addField({ id: 'custpage_col_modificado', type: serverWidget.FieldType.TEXT, label: 'Última Modificación' });
+        fldModificado.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
+
+        const fldCreador = sublist.addField({ id: 'custpage_col_creador', type: serverWidget.FieldType.TEXT, label: 'Creado Por' });
+        fldCreador.updateDisplayType({ displayType: serverWidget.FieldDisplayType.INLINE });
 
         const fldActivo = sublist.addField({ id: 'custpage_col_activo', type: serverWidget.FieldType.CHECKBOX, label: 'Activo' });
         fldActivo.updateDisplayType({ displayType: displayModo });
@@ -70,13 +79,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         });
         fldNombre.updateDisplayType({ displayType: displayModo });
 
-        // const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo', source: 'customlist_nso_list_diametro_rin' });
-        // fldRinMin.updateDisplayType({ displayType: displayModo });
-
-        // const fldRinMax = sublist.addField({ id: 'custpage_col_rin_max', type: serverWidget.FieldType.SELECT, label: 'Rin Máximo', source: 'customlist_nso_list_diametro_rin' });
-        // fldRinMax.updateDisplayType({ displayType: displayModo });
-
-
         const fldRinMin = sublist.addField({ id: 'custpage_col_rin_min', type: serverWidget.FieldType.SELECT, label: 'Rin Mínimo' });
         fldRinMin.updateDisplayType({ displayType: displayModo });
         fldRinMin.addSelectOption({ value: '', text: '' });
@@ -85,7 +87,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
         fldRinMax.updateDisplayType({ displayType: displayModo });
         fldRinMax.addSelectOption({ value: '', text: '' });
 
-        // Poblamos ambos dropdowns con la misma búsqueda, ya que comparten la lista
         search.create({
             type: 'customlist_nso_list_diametro_rin',
             columns: ['name']
@@ -104,14 +105,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
         const fldObj = sublist.addField({ id: 'custpage_col_objetivo', type: serverWidget.FieldType.INTEGER, label: 'Cantidad Objetivo' });
         fldObj.updateDisplayType({ displayType: displayModo });
-
-        // const fldDesc = sublist.addField({ 
-        //     id: 'custpage_col_descuento', 
-        //     type: serverWidget.FieldType.SELECT, 
-        //     label: 'Descuento (%)', 
-        //     source: 'customlist_fut_lista_porcentajes_descu' 
-        // });
-        // fldDesc.updateDisplayType({ displayType: displayModo });
         
         const fldDesc = sublist.addField({ 
             id: 'custpage_col_descuento', 
@@ -143,11 +136,18 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
             search.create({
                 type: RECORD_META,
                 filters: [[FLD_PADRE, 'anyof', registroId]],
-                // Agregamos 'internalid' a las columnas extraídas
-                columns: ['internalid', FLD_ACTIVO, FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO]
+                // Agregamos 'created', 'lastmodified' y 'owner' a la búsqueda
+                columns: ['internalid', FLD_ACTIVO, FLD_NOMBRE_ESCALA, FLD_RIN_MIN, FLD_RIN_MAX, FLD_META_PCT, FLD_OBJETIVO, FLD_DESCUENTO, 'created', 'lastmodified', 'owner']
             }).run().each(res => {
-                // Guardamos el ID en la columna oculta
                 sublist.setSublistValue({ id: 'custpage_col_meta_id', line: line, value: res.id });
+
+                const fechaCreacion = res.getValue('created') || '';
+                const fechaModificacion = res.getValue('lastmodified') || '';
+                const creadorNombre = res.getText('owner') || res.getValue('owner') || '---';
+
+                if (fechaCreacion) sublist.setSublistValue({ id: 'custpage_col_creado', line: line, value: fechaCreacion });
+                if (fechaModificacion) sublist.setSublistValue({ id: 'custpage_col_modificado', line: line, value: fechaModificacion });
+                sublist.setSublistValue({ id: 'custpage_col_creador', line: line, value: creadorNombre });
 
                 let estaActivo = res.getValue(FLD_ACTIVO);
                 sublist.setSublistValue({ id: 'custpage_col_activo', line: line, value: (estaActivo === true || estaActivo === 'T') ? 'T' : 'F' });
@@ -204,13 +204,11 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                 const lineCount = req.getLineCount({ group: 'custpage_sublist_metas' });
                 let submittedIds = [];
 
-                // PASO 1: Recolectar todos los IDs que vienen en la pantalla
                 for (let i = 0; i < lineCount; i++) {
                     let metaId = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_meta_id', line: i });
                     if (metaId) submittedIds.push(metaId);
                 }
 
-                // PASO 2: Borrar de la Base de Datos los registros que el usuario eliminó en la pantalla
                 search.create({
                     type: RECORD_META,
                     filters: [[FLD_PADRE, 'anyof', registroId]]
@@ -221,7 +219,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
                     return true;
                 });
 
-                // PASO 3: Actualizar los existentes o Crear los nuevos
                 for (let i = 0; i < lineCount; i++) {
                     const metaId = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_meta_id', line: i });
                     const activoVal = req.getSublistValue({ group: 'custpage_sublist_metas', name: 'custpage_col_activo', line: i });
@@ -235,7 +232,6 @@ define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'], (se
 
                     let registroMeta;
 
-                    // Si ya tiene un ID, cargamos el registro (UPDATE). Si no, lo creamos (INSERT).
                     if (metaId) {
                         registroMeta = record.load({ type: RECORD_META, id: metaId });
                     } else {
