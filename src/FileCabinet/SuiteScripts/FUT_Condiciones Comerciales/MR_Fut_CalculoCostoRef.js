@@ -197,7 +197,6 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 });
             }
 
-            // === CAMBIO AQUÍ: Mandamos las variables por separado en lugar de un solo texto ===
             context.write({ 
                 key: itemId, 
                 value: { 
@@ -210,7 +209,6 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             });
 
         } catch (e) {
-            // Mandamos el mensaje de error separado
             context.write({ 
                 key: itemId, 
                 value: { status: 'ERROR', errorMsg: e.message } 
@@ -219,7 +217,6 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
     };
 
     const summarize = (summary) => {
-        // Agregamos la columna "Detalle de Error" al final por precaución
         let csvContent = 'ID Articulo,Estatus,Costo Factura,Arribo,Stock Ant,REF,Detalle de Error\n';
         let totalExitos = 0;
         let totalErrores = 0;
@@ -227,13 +224,10 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         summary.output.iterator().each((key, value) => {
             let resultado = JSON.parse(value);
             
-            // === CAMBIO AQUÍ: Evaluamos si fue éxito o error para armar las columnas correctamente ===
             if (resultado.status === 'ÉXITO') {
-                // Acomodamos cada variable separada por una coma
                 csvContent += `${key},${resultado.status},${resultado.costoFactura},${resultado.arribo},${resultado.stockAnterior},${resultado.costoRef},\n`;
                 totalExitos++;
             } else {
-                // Si hubo error, dejamos las columnas numéricas vacías y ponemos el error al final
                 let errorLimpio = resultado.errorMsg ? resultado.errorMsg.replace(/,/g, ' ') : 'Error desconocido';
                 csvContent += `${key},${resultado.status},,,,,${errorLimpio}\n`;
                 totalErrores++;
@@ -259,6 +253,48 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             body: `El proceso masivo ha terminado.\n\nArtículos procesados con éxito: ${totalExitos}\nErrores: ${totalErrores}\n\nRevisa el archivo adjunto para más detalles.`,
             attachments: [fileObj]
         });
+
+        // === 5. ACTUALIZAMOS EL ESTATUS EN EL ITEM RECEIPT ===
+        const receiptId = runtime.getCurrentScript().getParameter({ name: 'custscript_fut_receipt_id' });
+
+        // LOG DE DIAGNÓSTICO 1: Verificar que el parámetro llega bien
+        log.debug('summarize - receiptId recibido', receiptId);
+        log.debug('summarize - Totales', `Exitos: ${totalExitos} | Errores: ${totalErrores}`);
+
+        if (receiptId) {
+            try {
+                const estatusFinal = totalErrores > 0 ? 'ERROR' : 'EXITO';
+
+                // LOG DE DIAGNÓSTICO 2: Antes de intentar guardar
+                log.debug('summarize - Intentando actualizar', `ID: ${receiptId} | Nuevo estatus: ${estatusFinal}`);
+
+                record.submitFields({
+                    type: record.Type.ITEM_RECEIPT,
+                    id: receiptId,
+                    values: {
+                        custbody_fut_status_calculo: estatusFinal
+                    },
+                    options: { enableSourcing: false, ignoreMandatoryFields: true }
+                });
+
+                // LOG DE DIAGNÓSTICO 3: Confirmar que no hubo excepción
+                log.audit('Estatus actualizado OK', `Item Receipt ${receiptId} → ${estatusFinal}`);
+
+                // LOG DE DIAGNÓSTICO 4: Releer el campo para confirmar que sí se guardó
+                const verificacion = search.lookupFields({
+                    type: search.Type.ITEM_RECEIPT,
+                    id: receiptId,
+                    columns: ['custbody_fut_status_calculo']
+                });
+                log.debug('summarize - Verificación post-guardado', JSON.stringify(verificacion));
+
+            } catch (e) {
+                // LOG DE DIAGNÓSTICO 5: Si falla, aquí veremos por qué (permisos, campo mal escrito, etc.)
+                log.error('summarize - ERROR al actualizar estatus', e.message);
+            }
+        } else {
+            log.error('summarize - receiptId es NULO', 'No se pudo actualizar el campo porque no llegó el parámetro custscript_fut_receipt_id');
+        }
     };
 
     return { getInputData, map, summarize };
