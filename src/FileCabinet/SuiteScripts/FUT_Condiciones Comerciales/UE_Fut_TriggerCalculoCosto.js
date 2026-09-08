@@ -8,11 +8,54 @@ define(['N/task', 'N/search', 'N/log', 'N/record'],
 (task, search, log, record) => {
 
     const beforeSubmit = (context) => {
+        log.debug('beforeSubmit - INICIO', 'Context Type: ' + context.type);
+
+        // --- LÓGICA DE BORRADO ---
+        // (Se coloca aquí porque NetSuite maneja el borrado dentro de beforeSubmit)
+        if (context.type === context.UserEventType.DELETE) {
+            const oldRecord = context.oldRecord;
+            const itemCount = oldRecord.getLineCount({ sublistId: 'item' });
+            
+            log.debug('beforeSubmit (Delete) - Lineas encontradas en registro viejo', itemCount);
+
+            for (let i = 0; i < itemCount; i++) {
+                let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+                let costoAnterior = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i });
+
+                log.debug('beforeSubmit (Delete) - Revisando Línea', `Línea ${i} | Item: ${itemId} | Costo Anterior Guardado: ${costoAnterior}`);
+
+                if (itemId && (costoAnterior || costoAnterior === 0)) {
+                    try {
+                        let itemLookup = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['recordtype'] });
+                        let tipoArticulo = Array.isArray(itemLookup.recordtype) ? itemLookup.recordtype[0].value : itemLookup.recordtype;
+
+                        log.debug('beforeSubmit (Delete) - Intentando restaurar', `Item: ${itemId} | Tipo: ${tipoArticulo} | Nuevo valor: ${costoAnterior}`);
+
+                        record.submitFields({
+                            type: tipoArticulo,
+                            id: itemId,
+                            values: { 'custitemcustitem_nso_refmxp': parseFloat(costoAnterior) },
+                            options: { enableSourcing: false, ignoreMandatoryFields: true }
+                        });
+                        log.audit('Costo REF Restaurado', `Item: ${itemId} | Costo devuelto a: ${costoAnterior}`);
+                    } catch (e) {
+                        log.error('Error restaurando Costo REF', e.message);
+                    }
+                }
+            }
+            return; // Detenemos la ejecución aquí si es un borrado
+        }
+        // --- FIN LÓGICA DE BORRADO ---
+
+
+        // --- LÓGICA ORIGINAL DE CREACIÓN ---
         if (context.type !== context.UserEventType.CREATE) return;
 
         const newRecord = context.newRecord;
         const itemCount = newRecord.getLineCount({ sublistId: 'item' });
         const subsidiariaTx = newRecord.getValue({ fieldId: 'subsidiary' });
+        
+        log.debug('beforeSubmit - Datos Básicos', `Lineas: ${itemCount} | Sub: ${subsidiariaTx}`);
         
         if (itemCount === 0) return;
 
@@ -58,60 +101,29 @@ define(['N/task', 'N/search', 'N/log', 'N/record'],
             
             if (stockPrevio < 0) stockPrevio = 0; 
             
-            newRecord.setSublistValue({
-                sublistId: 'item',
-                fieldId: 'custcol_fut_stock_previo',
-                line: i,
-                value: stockPrevio
-            });
+            newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_stock_previo', line: i, value: stockPrevio });
 
-            // 3a. Buscar el costo actual del artículo para guardarlo como respaldo
+            // 3a. Buscar el costo actual del artículo
             let costoActualRef = 0;
             try {
                 let itemFields = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['custitemcustitem_nso_refmxp'] });
                 costoActualRef = parseFloat(itemFields.custitemcustitem_nso_refmxp) || 0;
-            } catch(e) {}
+                log.debug('beforeSubmit - Costo Leído', `Línea ${i} | Item ID: ${itemId} | Costo Encontrado: ${costoActualRef}`);
+            } catch(e) {
+                log.error('beforeSubmit - Error leyendo costo actual', `Item ID: ${itemId} | Error: ${e.message}`);
+            }
 
             // 3b. Guardar el costo anterior en el campo de línea
-            newRecord.setSublistValue({
-                sublistId: 'item',
-                fieldId: 'custcol_refmxp',
-                line: i,
-                value: costoActualRef
-            });
+            try {
+                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i, value: costoActualRef });
+                log.debug('beforeSubmit - Asignación exitosa', `Línea ${i} | Campo custcol_refmxp seteado a: ${costoActualRef}`);
+            } catch (e) {
+                log.error('beforeSubmit - Error seteando campo de línea', `Línea ${i} | Error: ${e.message}`);
+            }
         }
 
         // 4. MARCAMOS EL REGISTRO
         newRecord.setValue({ fieldId: 'custbody_fut_status_calculo', value: 'PROCESANDO' });
-    };
-
-    const beforeDelete = (context) => {
-        if (context.type !== context.UserEventType.DELETE) return;
-
-        const oldRecord = context.oldRecord;
-        const itemCount = oldRecord.getLineCount({ sublistId: 'item' });
-
-        for (let i = 0; i < itemCount; i++) {
-            let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-            let costoAnterior = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i });
-
-            if (itemId && costoAnterior) {
-                try {
-                    let itemLookup = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['recordtype'] });
-                    let tipoArticulo = Array.isArray(itemLookup.recordtype) ? itemLookup.recordtype[0].value : itemLookup.recordtype;
-
-                    record.submitFields({
-                        type: tipoArticulo,
-                        id: itemId,
-                        values: { 'custitemcustitem_nso_refmxp': parseFloat(costoAnterior) },
-                        options: { enableSourcing: false, ignoreMandatoryFields: true }
-                    });
-                    log.audit('Costo REF Restaurado', `Item: ${itemId} | Costo devuelto a: ${costoAnterior}`);
-                } catch (e) {
-                    log.error('Error restaurando Costo REF', e.message);
-                }
-            }
-        }
     };
 
     const afterSubmit = (context) => {
@@ -129,11 +141,11 @@ define(['N/task', 'N/search', 'N/log', 'N/record'],
                 }
             });
             mrTask.submit();
+            log.debug('afterSubmit', 'Map/Reduce disparado para ID: ' + recordId);
         } catch (e) {
             log.error('Error al lanzar Map/Reduce', e.message);
         }
     };
 
-    // 5. RETORNAMOS LAS FUNCIONES
-    return { beforeSubmit, beforeDelete, afterSubmit };
+    return { beforeSubmit, afterSubmit };
 });
