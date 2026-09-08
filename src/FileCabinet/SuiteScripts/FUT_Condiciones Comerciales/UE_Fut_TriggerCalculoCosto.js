@@ -4,62 +4,120 @@
  * 
  * UE_Fut_TriggerCalculoCosto.js
  */
-define(['N/task', 'N/search', 'N/log', 'N/record'], 
-(task, search, log, record) => {
+define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget'], 
+(task, search, record, log, serverWidget) => {
+
+    const beforeLoad = (context) => {
+        // Solo actuamos cuando el usuario está VIENDO el registro
+        if (context.type !== context.UserEventType.VIEW) return;
+
+        const rec = context.newRecord;
+        const estadoBruto = rec.getValue({ fieldId: 'custbody_fut_status_calculo' });
+        const estado = String(estadoBruto || '').trim().toUpperCase();
+
+        log.debug('beforeLoad - Estatus leido', `Estado: "${estado}"`);
+
+        if (!estado) return; // Sin estatus, no mostramos nada
+
+        const form = context.form;
+        const htmlBanner = form.addField({
+            id: 'custpage_fut_calculo_alerta',
+            type: serverWidget.FieldType.INLINEHTML,
+            label: 'Alerta Calculo'
+        });
+
+        if (estado === 'PROCESANDO') {
+            htmlBanner.defaultValue = `
+                <div style="background-color: #d9edf7; border-color: #bce8f1; color: #31708f;
+                            padding: 15px; margin: 15px 0; border: 1px solid #bce8f1; 
+                            border-radius: 4px; font-size: 14px; font-family: sans-serif;">
+                    <strong>Cálculo en proceso:</strong> Los costos REF se están calculando en segundo plano. Recibirás un correo cuando el proceso termine.
+                </div>
+            `;
+        } else if (estado === 'EXITO' || estado === 'ÉXITO') {
+            htmlBanner.defaultValue = `
+                <div style="background-color: #dff0d8; border-color: #d6e9c6; color: #3c763d;
+                            padding: 15px; margin: 15px 0; border: 1px solid #d6e9c6; 
+                            border-radius: 4px; font-size: 14px; font-family: sans-serif;">
+                    <strong>Cálculo completado:</strong> Los costos REF se actualizaron correctamente. Revisa tu correo para el reporte detallado.
+                </div>
+            `;
+            limpiarEstatusDespuesDeMostrar(rec.id);
+        } else if (estado === 'ERROR') {
+            htmlBanner.defaultValue = `
+                <div style="background-color: #f2dede; border-color: #ebccd1; color: #a94442;
+                            padding: 15px; margin: 15px 0; border: 1px solid #ebccd1; 
+                            border-radius: 4px; font-size: 14px; font-family: sans-serif;">
+                    <strong>Cálculo con errores:</strong> Hubo problemas al calcular algunos costos REF. Revisa el reporte enviado a tu correo para más detalles.
+                </div>
+            `;
+            limpiarEstatusDespuesDeMostrar(rec.id);
+        }
+    };
+
+
+    const limpiarEstatusDespuesDeMostrar = (receiptId) => {
+        try {
+            record.submitFields({
+                type: record.Type.ITEM_RECEIPT,
+                id: receiptId,
+                values: { custbody_fut_status_calculo: '' },
+                options: { enableSourcing: false, ignoreMandatoryFields: true }
+            });
+            log.debug('limpiarEstatusDespuesDeMostrar - OK', `Receipt ${receiptId} | Estatus limpiado tras mostrar banner`);
+        } catch (e) {
+            log.error('limpiarEstatusDespuesDeMostrar - ERROR', `Receipt ${receiptId} | ${e.message}`);
+        }
+    };
 
     const beforeSubmit = (context) => {
-        log.debug('beforeSubmit - INICIO', 'Context Type: ' + context.type);
 
-        // --- LÓGICA DE BORRADO ---
-        // (Se coloca aquí porque NetSuite maneja el borrado dentro de beforeSubmit)
+        // LÓGICA DE BORRADO (RESTAURAR EL COSTO REF)
         if (context.type === context.UserEventType.DELETE) {
             const oldRecord = context.oldRecord;
             const itemCount = oldRecord.getLineCount({ sublistId: 'item' });
-            
-            log.debug('beforeSubmit (Delete) - Lineas encontradas en registro viejo', itemCount);
+            const itemsARestaurar = {};
 
             for (let i = 0; i < itemCount; i++) {
                 let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-                let costoAnterior = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i });
-
-                log.debug('beforeSubmit (Delete) - Revisando Línea', `Línea ${i} | Item: ${itemId} | Costo Anterior Guardado: ${costoAnterior}`);
-
-                if (itemId && (costoAnterior || costoAnterior === 0)) {
-                    try {
-                        let itemLookup = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['recordtype'] });
-                        let tipoArticulo = Array.isArray(itemLookup.recordtype) ? itemLookup.recordtype[0].value : itemLookup.recordtype;
-
-                        log.debug('beforeSubmit (Delete) - Intentando restaurar', `Item: ${itemId} | Tipo: ${tipoArticulo} | Nuevo valor: ${costoAnterior}`);
-
-                        record.submitFields({
-                            type: tipoArticulo,
-                            id: itemId,
-                            values: { 'custitemcustitem_nso_refmxp': parseFloat(costoAnterior) },
-                            options: { enableSourcing: false, ignoreMandatoryFields: true }
-                        });
-                        log.audit('Costo REF Restaurado', `Item: ${itemId} | Costo devuelto a: ${costoAnterior}`);
-                    } catch (e) {
-                        log.error('Error restaurando Costo REF', e.message);
-                    }
+                let refPrevio = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_ref_previo', line: i });
+                
+                if (itemId && refPrevio !== '' && refPrevio !== null && !itemsARestaurar[itemId]) {
+                    itemsARestaurar[itemId] = parseFloat(refPrevio);
                 }
             }
-            return; // Detenemos la ejecución aquí si es un borrado
+
+            for (let itemId in itemsARestaurar) {
+                try {
+                    let lookup = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['recordtype'] });
+                    let recType = Array.isArray(lookup.recordtype) ? lookup.recordtype[0].value : (typeof lookup.recordtype === 'object' ? lookup.recordtype.value : lookup.recordtype);
+                    
+                    if (recType) {
+                        record.submitFields({
+                            type: recType,
+                            id: itemId,
+                            values: { 'custitemcustitem_nso_refmxp': itemsARestaurar[itemId] },
+                            options: { enableSourcing: false, ignoreMandatoryFields: true }
+                        });
+                    }
+                } catch (e) {
+                    log.error(`Error restaurando REF del artículo ${itemId}`, e.message);
+                }
+            }
+            return; 
         }
-        // --- FIN LÓGICA DE BORRADO ---
 
-
-        // --- LÓGICA ORIGINAL DE CREACIÓN ---
+        // LÓGICA DE CREACIÓN (PREPARAR DATOS Y TOMAR FOTOGRAFÍAS)
         if (context.type !== context.UserEventType.CREATE) return;
 
         const newRecord = context.newRecord;
         const itemCount = newRecord.getLineCount({ sublistId: 'item' });
         const subsidiariaTx = newRecord.getValue({ fieldId: 'subsidiary' });
-        
-        log.debug('beforeSubmit - Datos Básicos', `Lineas: ${itemCount} | Sub: ${subsidiariaTx}`);
-        
+
+        log.debug('beforeSubmit (Create) - INICIO', `Lineas: ${itemCount} | Subsidiaria: ${subsidiariaTx}`);
+
         if (itemCount === 0) return;
 
-        // 1. OBTENER LISTA DE ITEMS ÚNICOS
         const itemIds = [];
         for (let i = 0; i < itemCount; i++) {
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
@@ -68,62 +126,73 @@ define(['N/task', 'N/search', 'N/log', 'N/record'],
             }
         }
 
+        log.debug('beforeSubmit (Create) - Items unicos en el receipt', JSON.stringify(itemIds));
+
         if (itemIds.length === 0) return;
 
-        // 2. OBTENER STOCK PREVIO
         const stockSnapshot = {};
-        if (subsidiariaTx) {
-            search.create({
-                type: search.Type.ITEM,
-                filters: [
-                    ['internalid', 'anyof', itemIds],
-                    'AND',
-                    ['inventorylocation.subsidiary', 'anyof', subsidiariaTx],
-                    'AND',
-                    ['inventorylocation.custrecord_fut_ubicacion_virtual', 'is', 'F']
-                ],
-                columns: [
-                    search.createColumn({ name: 'internalid', summary: search.Summary.GROUP }),
-                    search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })
-                ]
-            }).run().each(res => {
-                let id = res.getValue({ name: 'internalid', summary: search.Summary.GROUP });
-                let qty = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
-                stockSnapshot[id] = qty;
-                return true;
-            });
+        const refSnapshot = {}; 
+        try {
+            if (itemIds.length > 0) {
+                search.create({
+                    type: search.Type.ITEM,
+                    filters: [['internalid', 'anyof', itemIds]],
+                    columns: ['internalid', 'custitemcustitem_nso_refmxp']
+                }).run().each(res => {
+                    refSnapshot[res.id] = parseFloat(res.getValue('custitemcustitem_nso_refmxp')) || 0;
+                    return true;
+                });
+                log.debug('beforeSubmit (Create) - refSnapshot OK', JSON.stringify(refSnapshot));
+            }
+        } catch (e) {
+            log.error('beforeSubmit (Create) - ERROR en busqueda refSnapshot', `Items: ${JSON.stringify(itemIds)} | Error: ${e.message}`);
         }
 
-        // 3. ACTUALIZAR SUBLISTA CON STOCK PREVIO Y COSTO ANTERIOR
-        for (let i = 0; i < itemCount; i++) {
-            let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-            let stockPrevio = stockSnapshot[itemId] || 0;
-            
-            if (stockPrevio < 0) stockPrevio = 0; 
-            
-            newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_stock_previo', line: i, value: stockPrevio });
-
-            // 3a. Buscar el costo actual del artículo
-            let costoActualRef = 0;
-            try {
-                let itemFields = search.lookupFields({ type: search.Type.ITEM, id: itemId, columns: ['custitemcustitem_nso_refmxp'] });
-                costoActualRef = parseFloat(itemFields.custitemcustitem_nso_refmxp) || 0;
-                log.debug('beforeSubmit - Costo Leído', `Línea ${i} | Item ID: ${itemId} | Costo Encontrado: ${costoActualRef}`);
-            } catch(e) {
-                log.error('beforeSubmit - Error leyendo costo actual', `Item ID: ${itemId} | Error: ${e.message}`);
+        try {
+            if (subsidiariaTx) {
+                search.create({
+                    type: search.Type.ITEM,
+                    filters: [
+                        ['internalid', 'anyof', itemIds],
+                        'AND',
+                        ['inventorylocation.subsidiary', 'anyof', subsidiariaTx],
+                        'AND',
+                        ['inventorylocation.custrecord_fut_ubicacion_virtual', 'is', 'F']
+                    ],
+                    columns: [
+                        search.createColumn({ name: 'internalid', summary: search.Summary.GROUP }),
+                        search.createColumn({ name: 'locationquantityonhand', summary: search.Summary.SUM })
+                    ]
+                }).run().each(res => {
+                    let id = res.getValue({ name: 'internalid', summary: search.Summary.GROUP });
+                    let qty = parseFloat(res.getValue({ name: 'locationquantityonhand', summary: search.Summary.SUM })) || 0;
+                    stockSnapshot[id] = qty;
+                    return true;
+                });
+                log.debug('beforeSubmit (Create) - stockSnapshot OK', JSON.stringify(stockSnapshot));
             }
-
-            // 3b. Guardar el costo anterior en el campo de línea
-            try {
-                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i, value: costoActualRef });
-                log.debug('beforeSubmit - Asignación exitosa', `Línea ${i} | Campo custcol_refmxp seteado a: ${costoActualRef}`);
-            } catch (e) {
-                log.error('beforeSubmit - Error seteando campo de línea', `Línea ${i} | Error: ${e.message}`);
-            }
+        } catch (e) {
+            log.error('beforeSubmit (Create) - ERROR en busqueda stockSnapshot', `Items: ${JSON.stringify(itemIds)} | Sub: ${subsidiariaTx} | Error: ${e.message}`);
         }
 
-        // 4. MARCAMOS EL REGISTRO
+        try {
+            for (let i = 0; i < itemCount; i++) {
+                let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+                
+                let stockPrevio = stockSnapshot[itemId] || 0;
+                if (stockPrevio < 0) stockPrevio = 0; 
+                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_stock_previo', line: i, value: stockPrevio });
+
+                let refPrevio = refSnapshot[itemId] || 0;
+                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_ref_previo', line: i, value: refPrevio });
+            }
+            log.debug('beforeSubmit (Create) - Sublistas actualizadas OK', `Total lineas: ${itemCount}`);
+        } catch (e) {
+            log.error('beforeSubmit (Create) - ERROR seteando sublistas', e.message);
+        }
+
         newRecord.setValue({ fieldId: 'custbody_fut_status_calculo', value: 'PROCESANDO' });
+        log.debug('beforeSubmit (Create) - FIN', 'Estatus seteado a PROCESANDO');
     };
 
     const afterSubmit = (context) => {
@@ -147,5 +216,5 @@ define(['N/task', 'N/search', 'N/log', 'N/record'],
         }
     };
 
-    return { beforeSubmit, afterSubmit };
+    return { beforeLoad, beforeSubmit, afterSubmit };
 });
