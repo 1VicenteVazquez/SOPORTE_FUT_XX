@@ -11,6 +11,13 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
     const FLD_ITEM_RIN = 'custitem_diametro_rin'; 
     const FLD_ITEM_REFMXP = 'custitemcustitem_nso_refmxp'; 
 
+    // Formatea numeros a 2 decimales con comas de miles y punto decimal. Ej: 1234.5 -> "1,234.50"
+    const formatMoney = (num) => {
+        const n = parseFloat(num);
+        if (isNaN(n)) return '0.00';
+        return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     const getInputData = () => {
         const receiptId = runtime.getCurrentScript().getParameter({ name: 'custscript_fut_receipt_id' });
         if (!receiptId) return [];
@@ -35,6 +42,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             return true;
         });
 
+        log.debug('getInputData - Cache Condiciones Comerciales', JSON.stringify(condicionesCache));
+
         const condicionesIds = Object.values(condicionesCache).map(c => c.id);
         if (condicionesIds.length > 0) {
             search.create({
@@ -58,6 +67,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 return true;
             });
 
+            log.debug('getInputData - Cache Metas (Escalones Rebate)', JSON.stringify(condicionesCache));
+
             search.create({
                 type: 'customrecord_fut_precio_esp_art',
                 filters: [['custrecord_pea_padre', 'anyof', condicionesIds], 'AND', ['custrecord_pea_activo', 'is', 'T']],
@@ -73,6 +84,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 }
                 return true;
             });
+
+            log.debug('getInputData - Cache Precios Especiales por Articulo', JSON.stringify(condicionesCache));
         }
 
         // 2. EXCLUSIÓN DE UBICACIONES VIRTUALES
@@ -82,6 +95,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             if (locId && !ubicacionesAValidar.includes(locId)) ubicacionesAValidar.push(locId);
         }
 
+        log.debug('getInputData - Ubicaciones a Validar', JSON.stringify(ubicacionesAValidar));
+
         const ubicacionesVirtuales = {};
         if (ubicacionesAValidar.length > 0) {
             search.create({
@@ -90,6 +105,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 columns: ['internalid']
             }).run().each(res => { ubicacionesVirtuales[res.id] = true; return true; });
         }
+
+        log.debug('getInputData - Ubicaciones Virtuales (Excluidas)', JSON.stringify(ubicacionesVirtuales));
 
         // 3. AGRUPACIÓN DE LÍNEAS + LECTURA DEL SNAPSHOT
         const articulosAgrupados = {};
@@ -102,7 +119,12 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             // AQUÍ LEEMOS LA FOTOGRAFÍA QUE DEJÓ EL USER EVENT
             let stockSnapshot = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_stock_previo', line: i })) || 0;
 
-            if (ubicacionesVirtuales[locIdLinea]) continue; 
+            log.debug(`getInputData - Linea ${i}`, `Item: ${itemId} | Cant: ${cantidadLinea} | Costo Factura: ${costoFacturaLinea} | Loc: ${locIdLinea} | StockPrevio(snapshot): ${stockSnapshot}`);
+
+            if (ubicacionesVirtuales[locIdLinea]) {
+                log.debug(`getInputData - Linea ${i} EXCLUIDA`, `Item: ${itemId} | Motivo: Ubicacion Virtual (${locIdLinea})`);
+                continue;
+            }
 
             if (itemId && cantidadLinea > 0 && costoFacturaLinea > 0) {
                 if (!articulosAgrupados[itemId]) {
@@ -110,8 +132,12 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 }
                 articulosAgrupados[itemId].cantidadTotal += cantidadLinea;
                 articulosAgrupados[itemId].costoTotalAcumulado += (cantidadLinea * costoFacturaLinea);
+            } else {
+                log.debug(`getInputData - Linea ${i} EXCLUIDA`, `Item: ${itemId} | Motivo: itemId/cantidad/costo invalido (Cant: ${cantidadLinea}, Costo: ${costoFacturaLinea})`);
             }
         }
+
+        log.debug('getInputData - Articulos Agrupados (Resultado Final)', JSON.stringify(articulosAgrupados));
 
         const dataParaMap = [];
         for (let itemId in articulosAgrupados) {
@@ -123,6 +149,9 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 cache: condicionesCache
             });
         }
+
+        log.debug('getInputData - Total de registros enviados al Map', dataParaMap.length);
+
         return dataParaMap;
     };
 
@@ -135,12 +164,17 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         const condicionesCache = data.cache;
         const factorIVA = 1.16; 
 
+        log.debug(`map [Item ${itemId}] - PASO 0: Datos de Entrada`, 
+            `Arribo(cant): ${arribo} | CostoTotalAcumulado: $${formatMoney(data.costoTotalAcumulado)} | CostoFactura(promedio): $${formatMoney(costoFactura)} | StockAnterior: ${stockAnterior}`);
+
         try {
             let itemFields = search.lookupFields({
                 type: search.Type.ITEM,
                 id: itemId,
                 columns: ['recordtype', FLD_ITEM_MARCA, FLD_ITEM_RIN, FLD_ITEM_REFMXP]
             });
+
+            log.debug(`map [Item ${itemId}] - PASO 1: itemFields (raw)`, JSON.stringify(itemFields));
 
             let costoRefAnterior = parseFloat(itemFields[FLD_ITEM_REFMXP]) || 0;
             let recordType = Array.isArray(itemFields.recordtype) ? itemFields.recordtype[0]?.value : (typeof itemFields.recordtype === 'object' ? itemFields.recordtype.value : itemFields.recordtype);
@@ -152,6 +186,9 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             else if (typeof rinRaw === 'object') rinRaw = rinRaw.text || rinRaw.value;
             let rinArticulo = parseFloat(rinRaw) || 0;
 
+            log.debug(`map [Item ${itemId}] - PASO 2: Datos del Articulo Parseados`, 
+                `RecordType: ${recordType} | Marca: ${marcaArticulo} | Rin: ${rinArticulo} | CostoRefAnterior(header actual): $${formatMoney(costoRefAnterior)}`);
+
             let pctProntoPago = 0;
             let pctRebate = 0;
             let precioEspecialActivo = 0; 
@@ -160,8 +197,12 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 const condicionActiva = condicionesCache[marcaArticulo];
                 pctProntoPago = condicionActiva.pp;
 
+                log.debug(`map [Item ${itemId}] - PASO 3: Condicion Comercial Encontrada`, 
+                    `Marca: ${marcaArticulo} | %ProntoPago: ${(pctProntoPago * 100).toFixed(2)}% | Cant.Metas: ${condicionActiva.metas.length} | Cant.PreciosEsp: ${Object.keys(condicionActiva.precios || {}).length}`);
+
                 if (condicionActiva.precios && condicionActiva.precios[itemId]) {
                     precioEspecialActivo = condicionActiva.precios[itemId];
+                    log.debug(`map [Item ${itemId}] - PASO 3a: Precio Especial Activo`, `Precio: $${formatMoney(precioEspecialActivo)}`);
                 }
 
                 if (rinArticulo > 0 && condicionActiva.metas.length > 0) {
@@ -169,16 +210,23 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                         let escalon = condicionActiva.metas[m];
                         if (rinArticulo >= escalon.min && rinArticulo <= escalon.max) {
                             pctRebate = escalon.descuento; 
+                            log.debug(`map [Item ${itemId}] - PASO 3b: Escalon Rebate Encontrado`, 
+                                `Rin: ${rinArticulo} entra en [${escalon.min} - ${escalon.max}] | %Rebate: ${(pctRebate * 100).toFixed(2)}%`);
                             break; 
                         }
                     }
                 }
+            } else {
+                log.debug(`map [Item ${itemId}] - PASO 3: Sin Condicion Comercial`, `Marca: ${marcaArticulo} no tiene condicion activa en cache`);
             }
 
             let costoBaseCalculo = (precioEspecialActivo > 0) ? precioEspecialActivo : costoFactura;
             let descuentoProntoPago = costoBaseCalculo * pctProntoPago;
             let descuentoRebate = costoBaseCalculo * pctRebate;
             let costoNeto = (costoBaseCalculo - descuentoProntoPago - descuentoRebate) * factorIVA;
+
+            log.debug(`map [Item ${itemId}] - PASO 4: Calculo Costo Neto`, 
+                `CostoBase(${precioEspecialActivo > 0 ? 'PrecioEspecial' : 'CostoFactura'}): $${formatMoney(costoBaseCalculo)} | DescProntoPago: $${formatMoney(descuentoProntoPago)} | DescRebate: $${formatMoney(descuentoRebate)} | FactorIVA: ${factorIVA} | CostoNeto: $${formatMoney(costoNeto)}`);
 
             let valorArribo = arribo * costoNeto;
             let valorStock = stockAnterior * costoRefAnterior; 
@@ -188,6 +236,9 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
 
             let costoRef = (denominador > 0) ? parseFloat((numerador / denominador).toFixed(2)) : 0;
 
+            log.debug(`map [Item ${itemId}] - PASO 5: Promedio Ponderado (Costo REF Final)`, 
+                `ValorArribo(${arribo} x $${formatMoney(costoNeto)}): $${formatMoney(valorArribo)} | ValorStock(${stockAnterior} x $${formatMoney(costoRefAnterior)}): $${formatMoney(valorStock)} | Numerador: $${formatMoney(numerador)} | Denominador: ${denominador} | CostoRef: $${formatMoney(costoRef)}`);
+
             if (recordType) {
                 record.submitFields({
                     type: recordType,
@@ -195,6 +246,9 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                     values: { [FLD_ITEM_REFMXP]: costoRef },
                     options: { enableSourcing: false, ignoreMandatoryFields: true }
                 });
+                log.audit(`map [Item ${itemId}] - PASO 6: Costo REF Actualizado en Articulo`, `Nuevo valor guardado: $${formatMoney(costoRef)}`);
+            } else {
+                log.error(`map [Item ${itemId}] - PASO 6: NO se actualizo`, 'recordType vino vacio/nulo, no se pudo hacer submitFields');
             }
 
             context.write({ 
@@ -209,6 +263,7 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             });
 
         } catch (e) {
+            log.error(`map [Item ${itemId}] - ERROR`, e.message);
             context.write({ 
                 key: itemId, 
                 value: { status: 'ERROR', errorMsg: e.message } 
@@ -225,7 +280,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
             let resultado = JSON.parse(value);
             
             if (resultado.status === 'ÉXITO') {
-                csvContent += `${key},${resultado.status},${resultado.costoFactura},${resultado.arribo},${resultado.stockAnterior},${resultado.costoRef},\n`;
+                // Los montos con comas de miles se envuelven en comillas para no romper las columnas del CSV
+                csvContent += `${key},${resultado.status},"${formatMoney(resultado.costoFactura)}",${resultado.arribo},${resultado.stockAnterior},"${formatMoney(resultado.costoRef)}",\n`;
                 totalExitos++;
             } else {
                 let errorLimpio = resultado.errorMsg ? resultado.errorMsg.replace(/,/g, ' ') : 'Error desconocido';
@@ -235,6 +291,8 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
 
             return true;
         });
+
+        log.debug('summarize - CSV Generado', csvContent);
 
         // 4. ENVÍO DE CORREO CON ADJUNTO EN FORMATO CSV CON ACENTOS UTF-8 
         const fileObj = file.create({
@@ -295,6 +353,12 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         } else {
             log.error('summarize - receiptId es NULO', 'No se pudo actualizar el campo porque no llegó el parámetro custscript_fut_receipt_id');
         }
+
+        // LOG DE DIAGNÓSTICO 6: Resumen de errores/uso del sistema del MR (usage, tiempos)
+        summary.mapSummary.errors.iterator().each((key, error) => {
+            log.error(`summarize - Error en fase MAP (key: ${key})`, error);
+            return true;
+        });
     };
 
     return { getInputData, map, summarize };
