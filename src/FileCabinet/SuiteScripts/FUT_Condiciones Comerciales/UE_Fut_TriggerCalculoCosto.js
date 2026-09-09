@@ -79,7 +79,9 @@ define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget', 'N/file'
                 let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
                 let stockPrevio = stockSnapshot[itemId] || 0;
                 newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_stock_previo', line: i, value: (stockPrevio < 0 ? 0 : stockPrevio) });
-                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_ref_previo', line: i, value: (refSnapshot[itemId] || 0) });
+                
+                // AQUÍ USAMOS EL ID DE CAMPO CORRECTO PARA GUARDAR LA FOTOGRAFÍA
+                newRecord.setSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i, value: (refSnapshot[itemId] || 0) });
             }
         } catch (e) { log.error('ERROR sublistas', e.message); }
 
@@ -93,7 +95,6 @@ define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget', 'N/file'
             const itemCount = oldRecord.getLineCount({ sublistId: 'item' });
             const itemsARestaurar = {};
 
-            // OBTENER EL ID DE LA CARPETA DESDE LOS PARÁMETROS DEL SCRIPT
             const carpetaId = runtime.getCurrentScript().getParameter({ name: 'custscript_fut_json_folder_id' });
 
             if (!carpetaId) {
@@ -103,15 +104,20 @@ define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget', 'N/file'
 
             for (let i = 0; i < itemCount; i++) {
                 let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-                let refPrevio = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_ref_previo', line: i });
-                if (itemId && refPrevio !== '' && refPrevio !== null && !itemsARestaurar[itemId]) {
-                    itemsARestaurar[itemId] = parseFloat(refPrevio);
+                
+                // AQUÍ USAMOS EL ID DE CAMPO CORRECTO PARA LEER LA FOTOGRAFÍA
+                let refPrevioRaw = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i });
+                
+                // PROTECCIÓN CONTRA NULOS
+                let refPrevio = parseFloat(refPrevioRaw);
+                
+                if (itemId && !isNaN(refPrevio) && !itemsARestaurar[itemId]) {
+                    itemsARestaurar[itemId] = refPrevio;
                 }
             }
 
             if (Object.keys(itemsARestaurar).length > 0) {
                 try {
-                    // Crear archivo JSON en el File Cabinet usando el parámetro
                     const fileObj = file.create({
                         name: `restaurar_ref_receipt_${oldRecord.id}_${new Date().getTime()}.json`,
                         fileType: file.Type.JSON,
@@ -121,17 +127,18 @@ define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget', 'N/file'
                     
                     const fileId = fileObj.save();
 
-                    const mrTask = task.create({
+                    task.create({
                         taskType: task.TaskType.MAP_REDUCE,
                         scriptId: 'customscript_fut_mr_restaurar_costoref', 
                         deploymentId: 'customdeploy_fut_mr_restaurar_costoref', 
                         params: { 'custscript_fut_del_file_id': fileId }
-                    });
-                    mrTask.submit();
+                    }).submit();
                     log.audit('afterSubmit (DELETE)', `JSON guardado. File ID: ${fileId}. MR disparado.`);
                 } catch (e) {
                     log.error('Error creando JSON o disparando MR', e.message);
                 }
+            } else {
+                log.audit('afterSubmit (DELETE)', 'No hay costos previos válidos para restaurar (líneas vacías o NaN).');
             }
         }
 

@@ -8,7 +8,6 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file'],
 (record, search, log, runtime, file) => {
     
     const getInputData = () => {
-        // 1. Recibimos el ID del archivo JSON desde los parámetros del script
         const fileId = runtime.getCurrentScript().getParameter({ name: 'custscript_fut_del_file_id' });
         
         if (!fileId) {
@@ -17,37 +16,19 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file'],
         }
 
         try {
-            // 2. Cargamos el archivo físico y leemos su contenido
+            // Cargamos el archivo físico y leemos su contenido
             const fileObj = file.load({ id: fileId });
             const dataStr = fileObj.getContents();
             const itemsARestaurar = JSON.parse(dataStr);
             
             const dataParaMap = [];
-            const itemIds = Object.keys(itemsARestaurar);
             
-            if (itemIds.length === 0) return [];
-
-            // 3. OPTIMIZACIÓN: Buscamos todos los recordtypes en 1 sola consulta
-            const recordTypesMap = {};
-            search.create({
-                type: search.Type.ITEM,
-                filters: [['internalid', 'anyof', itemIds]],
-                columns: ['internalid', 'recordtype']
-            }).run().each(res => {
-                let recType = res.getValue('recordtype');
-                recordTypesMap[res.id] = Array.isArray(recType) ? recType[0].value : (typeof recType === 'object' ? recType.value : recType);
-                return true;
-            });
-
-            // 4. Preparamos la data estructurada para que la procese la fase Map
+            // Simplemente pasamos el ID del artículo y su valor previo a la fase map
             for (let itemId in itemsARestaurar) {
-                if (recordTypesMap[itemId]) {
-                    dataParaMap.push({
-                        itemId: itemId,
-                        refPrevio: itemsARestaurar[itemId],
-                        recordType: recordTypesMap[itemId]
-                    });
-                }
+                dataParaMap.push({
+                    itemId: itemId,
+                    refPrevio: itemsARestaurar[itemId]
+                });
             }
 
             return dataParaMap;
@@ -61,14 +42,28 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file'],
     const map = (context) => {
         const data = JSON.parse(context.value);
         try {
-            // Restauramos el Costo REF original en el artículo
-            record.submitFields({
-                type: data.recordType,
-                id: data.itemId,
-                values: { 'custitemcustitem_nso_refmxp': data.refPrevio },
-                options: { enableSourcing: false, ignoreMandatoryFields: true }
+            // 1. Buscamos el tipo de registro exacto (1 punto de gobernanza)
+            let lookup = search.lookupFields({ 
+                type: search.Type.ITEM, 
+                id: data.itemId, 
+                columns: ['recordtype'] 
             });
-            log.audit(`Restaurado OK [Item ${data.itemId}]`, `Nuevo REF: $${data.refPrevio}`);
+            
+            let recType = Array.isArray(lookup.recordtype) ? lookup.recordtype[0].value : (typeof lookup.recordtype === 'object' ? lookup.recordtype.value : lookup.recordtype);
+            
+            // 2. Guardamos el valor (10 puntos de gobernanza)
+            if (recType) {
+                record.submitFields({
+                    type: recType,
+                    id: data.itemId,
+                    values: { 'custitemcustitem_nso_refmxp': data.refPrevio },
+                    options: { enableSourcing: false, ignoreMandatoryFields: true }
+                });
+                log.audit(`Restaurado OK [Item ${data.itemId}]`, `Nuevo REF: $${data.refPrevio}`);
+            } else {
+                log.error(`Item ${data.itemId}`, 'No se pudo determinar el recordtype');
+            }
+
         } catch (e) {
             log.error(`Error restaurando Item ${data.itemId}`, e.message);
         }
@@ -77,14 +72,13 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file'],
     const summarize = (summary) => {
         let errores = 0;
         
-        // Registrar cualquier error que haya ocurrido en la fase map
         summary.mapSummary.errors.iterator().each((key, error) => {
             log.error(`Error en map (Item: ${key})`, error);
             errores++;
             return true;
         });
 
-        // 5. LIMPIEZA: BORRAR EL ARCHIVO JSON TEMPORAL AL FINALIZAR
+        // LIMPIEZA: BORRAR EL ARCHIVO JSON TEMPORAL AL FINALIZAR
         const fileId = runtime.getCurrentScript().getParameter({ name: 'custscript_fut_del_file_id' });
         if (fileId) {
             try {
