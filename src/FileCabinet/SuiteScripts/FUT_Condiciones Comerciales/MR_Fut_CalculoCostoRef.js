@@ -23,7 +23,7 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         if (!receiptId) return [];
 
         const newRecord = record.load({ type: record.Type.ITEM_RECEIPT, id: receiptId });
-        const proveedorId = newRecord.getValue({ fieldId: 'entity' }); 
+        const proveedorId = newRecord.getValue({ fieldId: 'entity' }) || newRecord.getValue({ fieldId: 'custbody_fut_proveedor_origen' }); 
         const itemCount = newRecord.getLineCount({ sublistId: 'item' });
 
         if (!proveedorId || itemCount === 0) return [];
@@ -113,7 +113,12 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         for (let i = 0; i < itemCount; i++) {
             let itemId = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
             let cantidadLinea = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i })) || 0;
-            let costoFacturaLinea = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i })) || 0;
+            
+            // Leemos el costo de la línea, que puede venir del campo "rate" (costo nativo) o del campo personalizado "custcol_fut_costo_origen" (costo personalizado)
+            let costoNativo = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i }));
+            let costoPersonalizado = parseFloat(newRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_fut_costo_origen', line: i }));
+            let costoFacturaLinea = costoNativo || costoPersonalizado || 0;
+
             let locIdLinea = newRecord.getSublistValue({ sublistId: 'item', fieldId: 'location', line: i }) || newRecord.getValue({ fieldId: 'location' });
             
             // AQUÍ LEEMOS LA FOTOGRAFÍA QUE DEJÓ EL USER EVENT
