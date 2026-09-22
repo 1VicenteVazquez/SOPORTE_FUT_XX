@@ -37,7 +37,7 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
         }).run().each(res => {
             let ppText = res.getText({ name: 'custrecord_condcom_pronto_pago' }) || '0'; 
             let ppDecimal = parseFloat(ppText.replace('%', ''));
-            ppDecimal = (ppDecimal > 1) ? (ppDecimal / 100) : ppDecimal; 
+            ppDecimal = ppDecimal / 100; 
             condicionesCache[res.getValue({ name: 'custrecord_condcom_marca' })] = { id: res.id, pp: ppDecimal, metas: [], precios: {} };
             return true;
         });
@@ -56,7 +56,7 @@ define(['N/record', 'N/search', 'N/log', 'N/runtime', 'N/file', 'N/email'],
                 let rinMax = parseFloat(res.getText({ name: 'custrecord_rin_max' })) || 0;
                 let descText = res.getText({ name: 'custrecord_pct_descuento' }) || '0';
                 let descDecimal = parseFloat(descText.replace('%', ''));
-                descDecimal = (descDecimal > 1) ? (descDecimal / 100) : descDecimal;
+                descDecimal = desDecimal / 100;
 
                 for (let marcaId in condicionesCache) {
                     if (condicionesCache[marcaId].id === padreId) {
