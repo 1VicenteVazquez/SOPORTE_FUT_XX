@@ -102,19 +102,46 @@ define(['N/task', 'N/search', 'N/record', 'N/log', 'N/ui/serverWidget', 'N/file'
                 return;
             }
 
+            // ---OBTENER UBICACIONES DE LA RECEPCIÓN ---
+            const ubicacionesTransaccion = [];
             for (let i = 0; i < itemCount; i++) {
-                let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+                let locId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'location', line: i }) || oldRecord.getValue({ fieldId: 'location' });
+                if (locId && !ubicacionesTransaccion.includes(locId)) {
+                    ubicacionesTransaccion.push(locId);
+                }
+            }
+
+            // --- IDENTIFICAR CUÁLES DE ESAS UBICACIONES SON VIRTUALES ---
+            const ubicacionesVirtuales = {};
+            if (ubicacionesTransaccion.length > 0) {
+                search.create({
+                    type: search.Type.LOCATION,
+                    filters: [['internalid', 'anyof', ubicacionesTransaccion], 'AND', ['custrecord_fut_ubicacion_virtual', 'is', 'T']],
+                    columns: ['internalid']
+                }).run().each(res => { 
+                    ubicacionesVirtuales[res.id] = true; 
+                    return true; 
+                });
+            }
+
+            for (let i = 0; i < itemCount; i++) {
+                let locId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'location', line: i }) || oldRecord.getValue({ fieldId: 'location' });
                 
-                // AQUÍ USAMOS EL ID DE CAMPO CORRECTO PARA LEER LA FOTOGRAFÍA
+                // --- SI ES VIRTUAL, NOS SALTAMOS ESTA LÍNEA ---
+                if (ubicacionesVirtuales[locId]) {
+                    continue; 
+                }
+
+                let itemId = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
                 let refPrevioRaw = oldRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_refmxp', line: i });
                 
-                // PROTECCIÓN CONTRA NULOS
                 let refPrevio = parseFloat(refPrevioRaw);
                 
                 if (itemId && !isNaN(refPrevio) && !itemsARestaurar[itemId]) {
                     itemsARestaurar[itemId] = refPrevio;
                 }
             }
+
 
             if (Object.keys(itemsARestaurar).length > 0) {
                 try {
